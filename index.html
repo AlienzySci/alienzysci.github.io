@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Jelajahi Bima Sakti dan Tata Surya: sentuh 17 benda langit untuk membuka faktanya.">
+<meta name="description" content="Peta interaktif Bima Sakti, Tata Surya, Andromeda, dan gugus bintang. Interactive map of the Milky Way, the Solar System, Andromeda and star clusters.">
 <title>Galaksi Ajaib</title>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <style>
@@ -12,18 +12,19 @@
 html,body{height:100%}
 body{margin:0;background:var(--sky);color:var(--ink);font-family:var(--hand);overflow:hidden}
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
-#nav{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 118px);border:2.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 16px;font:bold 17px var(--hand);cursor:pointer;white-space:nowrap}
-#nav:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
+#bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 118px);display:flex;gap:8px}
+#bar button{border:2.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 16px;font:bold 17px var(--hand);cursor:pointer;white-space:nowrap}
+#bar button:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
 </style>
 </head>
 <body>
 <canvas id="c" aria-label="Galaksi Ajaib: sentuh benda langit untuk melihat faktanya, geser untuk berpindah, cubit atau scroll untuk zoom"></canvas>
-<button id="nav">Ke Tata Surya</button>
+<div id="bar"><button id="nav">Ke Tata Surya</button><button id="lang">English</button></div>
 <script>
-const c=document.getElementById('c'),x=c.getContext('2d'),nav=document.getElementById('nav');
+const c=document.getElementById('c'),x=c.getContext('2d'),nav=document.getElementById('nav'),bar=document.getElementById('bar'),lgb=document.getElementById('lang');
 const BLUE='#1747c9',SUN='#ffd23f',FONT='"Patrick Hand","Comic Sans MS","Chalkboard SE",cursive';
 // Dunia: pusat galaksi di (0,0), jari-jari galaksi 100 satuan. Layar = (dunia - C) * Z * B + (vx, vy)
-let W,H,B,vx,vy,bg,F=0,LWS=1,PM=null;
+let W,H,B,vx,vy,bg,hz,F=0,LWS=1,PM=null,ufoPh=0,angA=0;
 let Z=1.3,Zt=1.3,follow=null;const C={x:0,y:0},Ct={x:0,y:0};
 const h=n=>{const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s)};
 const cl=v=>Math.min(1,Math.max(0,v));
@@ -44,11 +45,11 @@ function resize(){
   c.width=W*D;c.height=H*D;x.setTransform(D,0,0,D,0,0);
   B=Math.min(W*.19,H*.17)/100;vx=W/2;vy=H*.53;
   bg=document.createElement('canvas');bg.width=W;bg.height=H;
-  const g=bg.getContext('2d'),gr=g.createLinearGradient(0,0,0,H);
+  let g=bg.getContext('2d');const gr=g.createLinearGradient(0,0,0,H);
   gr.addColorStop(0,'#070b24');gr.addColorStop(.6,'#0f1240');gr.addColorStop(1,'#1c1045');
   g.fillStyle=gr;g.fillRect(0,0,W,H);
-  const cols=['#7b8cff','#b69cff','#8fd3ff','#ffb6dc'];g.lineWidth=1.2;
-  for(let i=0;i<Math.min(1400,W*H/500);i++){g.strokeStyle=cols[i%4];g.globalAlpha=.04+Math.random()*.07;const a=Math.random()*W,b=Math.random()*H,l=6+Math.random()*14;g.beginPath();g.moveTo(a,b);g.lineTo(a+l,b-l);g.stroke()}
+  hz=document.createElement('canvas');hz.width=W;hz.height=H;g=hz.getContext('2d');const cols=['#7b8cff','#b69cff','#8fd3ff','#ffb6dc'];g.lineWidth=1.3;
+  for(let i=0;i<Math.min(1400,W*H/500);i++){g.strokeStyle=cols[i%4];g.globalAlpha=.06+Math.random()*.1;const a=Math.random()*W,b=Math.random()*H,l=6+Math.random()*14;g.beginPath();g.moveTo(a,b);g.lineTo(a+l,b-l);g.stroke()}
 }
 addEventListener('resize',resize);resize();
 
@@ -78,12 +79,63 @@ function wrap(s,w){const out=[];let l='';for(const wd of s.split(' ')){const n=l
 
 // Semua benda yang bisa disentuh: nama, warna judul kartu, fakta, nada
 const INFO={
-  core:{n:'Inti Galaksi',col:'#e0a400',f:'Di pusat Bima Sakti ada lubang hitam raksasa bernama Sagittarius A*.',note:196},
+  core:{n:'Sagittarius A*',col:'#e0a400',f:'Lubang hitam supermasif di pusat Bima Sakti. Massanya sekitar 4 juta kali Matahari.',note:196},
   sol:{n:'Tata Surya Kita',col:'#e0a400',f:'Tata Surya berada di salah satu lengan Bima Sakti, sekitar 26.000 tahun cahaya dari pusatnya.',note:262},
   neb:{n:'Nebula',col:'#e86aa6',f:'Nebula adalah awan gas dan debu raksasa, tempat bintang-bintang baru lahir.',note:294},
   clu:{n:'Gugus Bintang',col:'#3d9be0',f:'Gugus bintang adalah kumpulan ratusan sampai jutaan bintang yang lahir bersama.',note:330},
-  and:{n:'Galaksi Andromeda',col:'#8a5cff',f:'Tetangga besar kita, sekitar 2,5 juta tahun cahaya jauhnya. Suatu hari ia akan bertemu Bima Sakti.',note:349},
-  com:{n:'Komet',col:'#ff5fa2',f:'Komet adalah bola es dan debu. Ekornya muncul saat ia mendekati Matahari.',note:880},
+  and:{n:'Galaksi Andromeda M31-NGC 224',col:'#8a5cff',f:'Tetangga besar kita, sekitar 2,5 juta tahun cahaya jauhnya. Suatu hari ia akan bertemu Bima Sakti.',note:349},
+  m31:{n:'Lubang Hitam M31*',s:'M31*',col:'#e0a400',f:'Lubang hitam supermasif di pusat Andromeda. Massanya sekitar 100 juta kali Matahari.',note:147},
+  pa99:{n:'Bintang PA-99-N2',s:'PA-99-N2',col:'#e0a400',f:'Bintang di Andromeda yang pada 1999 cahayanya tampak menguat karena dibelokkan gravitasi benda di depannya.',note:415},
+  pa99b:{n:'Planet PA-99-N2b',s:'PA-99-N2b',col:'#2fae6b',f:'Kandidat planet pertama di luar Bima Sakti. Sampai sekarang keberadaannya belum terkonfirmasi.',note:466},
+  m31rv:{n:'Bintang M31-RV',s:'M31-RV',col:'#e0503f',f:'Bintang yang pada 1988 tiba-tiba menyala merah sangat terang, lalu meredup lagi.',note:311},
+  m32:{n:'Galaksi Satelit M32',s:'M32',col:'#c08a3a',f:'Galaksi kecil dan padat yang mengelilingi Andromeda, seperti bulan mengelilingi planet.',note:554},
+  m110:{n:'Galaksi Satelit M110',s:'M110',col:'#4b63e0',f:'Galaksi kerdil lonjong, satelit Andromeda yang lain. Andromeda punya sedikitnya 20 galaksi satelit.',note:622},
+  open:{n:'Gugus Terbuka',col:'#3d9be0',f:'Kumpulan bintang muda dengan ikatan longgar, berada di piringan galaksi. Contohnya Pleiades.',note:330},
+  glob:{n:'Gugus Bola',col:'#c08a3a',f:'Kumpulan bintang tua yang sangat padat, berada di halo galaksi. Contohnya Omega Centauri.',note:247},
+  bsg:{n:'Bintang Maharaksasa Biru',s:'Maharaksasa Biru',col:'#3d7be0',f:'Bintang yang sangat besar dan panas. Hidupnya singkat dan berakhir sebagai supernova.',note:523},
+  ms:{n:'Bintang Deret Utama',s:'Deret Utama',col:'#e0a400',f:'Bintang dewasa yang stabil, seperti Matahari kita. Sebagian besar bintang berada di tahap ini.',note:440},
+  rd:{n:'Katai Merah',col:'#e0503f',f:'Bintang kecil, redup, dan dingin. Umurnya bisa mencapai triliunan tahun.',note:392},
+  bd:{n:'Katai Cokelat',col:'#8a5a3c',f:'Bintang gagal: terlalu kecil untuk menyala seperti bintang biasa.',note:349},
+  rg:{n:'Raksasa Merah',col:'#e0603f',f:'Bintang tua yang mengembang besar dan memerah saat bahan bakarnya menipis.',note:294},
+  bs:{n:'Blue Straggler',col:'#3d7be0',f:'Bintang biru di gugus tua yang tampak awet muda, diduga hasil dua bintang yang bergabung.',note:587},
+  wd:{n:'Katai Putih',col:'#7d8db8',f:'Inti padat sisa bintang seperti Matahari, kira-kira seukuran Bumi.',note:659},
+  sn:{n:'Supernova',col:'#e86aa6',f:'Ledakan dahsyat di akhir hidup bintang besar. Sesaat ia bisa lebih terang dari satu galaksi.',note:131},
+  ns:{n:'Bintang Neutron',col:'#3d9be0',f:'Sisa supernova yang sangat padat: sesendok materinya seberat gunung.',note:988},
+  pn:{n:'Nebula Planeter',col:'#2fae9b',f:'Selubung gas warna-warni yang dilepaskan bintang tua, dengan katai putih di tengahnya.',note:466},
+  bar:{n:'Batang Galaksi',col:'#c08a3a',f:'Batang bintang tua di tengah Bima Sakti. Karena itulah Bima Sakti disebut galaksi spiral berbatang.',note:220},
+  rem:{n:'Mayat Bintang',col:'#7d6ad8',f:'Dekat pusat galaksi ada banyak bintang neutron dan lubang hitam kecil, sisa bintang besar yang sudah mati.',note:165},
+  fermi:{n:'Gelembung Fermi',col:'#a05cd8',f:'Dua gelembung raksasa sinar gamma di atas dan bawah pusat galaksi. Tingginya sekitar 25.000 tahun cahaya.',note:185},
+  ori:{n:'Nebula Orion',col:'#e86aa6',f:'Pabrik bintang terdekat dari Bumi, sekitar 1.300 tahun cahaya. Bisa dilihat dengan mata telanjang di rasi Orion.',note:311},
+  car:{n:'Nebula Carina',col:'#e08a1e',f:'Nebula raksasa tempat lahirnya bintang-bintang besar, termasuk Eta Carinae yang sangat terang.',note:277},
+  eag:{n:'Nebula Elang',col:'#8a5cff',f:'Rumah Pilar-Pilar Penciptaan, tiang gas dan debu yang terkenal dari foto teleskop Hubble.',note:370},
+  ringn:{n:'Nebula Cincin',col:'#2fae9b',f:'Nebula planeter berbentuk cincin: selubung gas yang dilepaskan bintang tua.',note:466},
+  crab:{n:'Nebula Kepiting',col:'#e08a1e',f:'Sisa ledakan supernova yang dilihat orang pada tahun 1054. Di tengahnya ada bintang neutron yang berputar cepat.',note:139},
+  ple:{n:'Pleiades',col:'#3d7be0',f:'Gugus terbuka Tujuh Bintang, di Jawa disebut Lintang Kartika. Bintang-bintangnya muda, panas, dan biru.',note:554},
+  sir:{n:'Sirius',col:'#3d9be0',f:'Bintang paling terang di langit malam. Jaraknya hanya 8,6 tahun cahaya.',note:740},
+  bet:{n:'Betelgeuse',col:'#e0603f',f:'Maharaksasa merah di pundak rasi Orion. Suatu hari ia akan meledak sebagai supernova.',note:208},
+  acen:{n:'Alpha Centauri',col:'#e0a400',f:'Sistem bintang terdekat dari Matahari, sekitar 4,2 sampai 4,4 tahun cahaya.',note:622},
+  pol:{n:'Polaris',col:'#d9a82b',f:'Bintang Utara. Letaknya hampir tepat di atas kutub utara Bumi, jadi dipakai sebagai penunjuk arah.',note:831},
+  trap:{n:'TRAPPIST-1',col:'#e0503f',f:'Bintang katai merah dengan tujuh planet seukuran Bumi. Beberapa berada di zona layak huni.',note:494},
+  cyg:{n:'Cygnus X-1',col:'#3d9be0',f:'Lubang hitam bintang pertama yang ditemukan. Ia menyedot gas dari bintang pasangannya.',note:156},
+  omc:{n:'Omega Centauri',col:'#c08a3a',f:'Gugus bola terbesar di Bima Sakti, berisi sekitar 10 juta bintang.',note:247},
+  m13:{n:'Gugus Hercules M13',s:'M13',col:'#c08a3a',f:'Gugus bola terkenal di langit utara. Tahun 1974 manusia mengirim pesan radio Arecibo ke arahnya.',note:262},
+  tuc:{n:'47 Tucanae',col:'#c08a3a',f:'Gugus bola paling terang kedua di langit, terlihat dari belahan Bumi selatan.',note:233},
+  lmc:{n:'Awan Magellan Besar',col:'#4b63e0',f:'Galaksi satelit terbesar Bima Sakti, sekitar 160.000 tahun cahaya dari kita. Terlihat dari langit selatan.',note:330},
+  smc:{n:'Awan Magellan Kecil',col:'#8a5cff',f:'Galaksi kerdil tetangga Awan Magellan Besar, sekitar 200.000 tahun cahaya jauhnya.',note:349},
+  sgrd:{n:'Galaksi Kerdil Sagittarius',s:'Kerdil Sagittarius',col:'#c0703a',f:'Galaksi kecil yang sedang ditarik dan dicabik perlahan oleh gravitasi Bima Sakti.',note:196},
+  cmd:{n:'Galaksi Kerdil Canis Major',s:'Kerdil Canis Major',col:'#c08a3a',f:'Kandidat galaksi satelit terdekat dari kita. Sebagian ilmuwan masih memperdebatkannya.',note:175},
+  p1p2:{n:'Inti Ganda P1 & P2',s:'P1 & P2',col:'#d9a82b',f:'Pusat Andromeda tampak punya dua inti terang. Lubang hitam M31* berada di P2.',note:185},
+  ringf:{n:'Cincin Api',col:'#e86aa6',f:'Cincin debu raksasa di piringan Andromeda, pabrik tempat bintang-bintang baru lahir.',note:294},
+  ngc206:{n:'NGC 206',col:'#3d7be0',f:'Awan bintang paling terang di Andromeda, penuh bintang muda berwarna biru.',note:523},
+  sn1885:{n:'SN 1885A',col:'#e08a1e',f:'Supernova pertama yang teramati di galaksi lain, terlihat pada tahun 1885.',note:131},
+  g1:{n:'Mayall II (G1)',col:'#c08a3a',f:'Gugus bola terbesar di Andromeda, diduga sisa inti galaksi kerdil yang pernah ditelannya.',note:247},
+  ngc147:{n:'Galaksi Satelit NGC 147',s:'NGC 147',col:'#c08a3a',f:'Galaksi kerdil satelit Andromeda. Ia berpasangan dengan tetangganya, NGC 185.',note:587},
+  ngc185:{n:'Galaksi Satelit NGC 185',s:'NGC 185',col:'#4b63e0',f:'Galaksi kerdil satelit Andromeda yang masih punya sedikit gas untuk membentuk bintang.',note:659},
+  gss:{n:'Aliran Bintang Raksasa',col:'#6b7fd0',f:'Jejak bintang dari galaksi kecil yang pernah dicabik dan ditelan Andromeda.',note:208},
+  m33:{n:'Galaksi Triangulum M33',s:'Triangulum M33',col:'#3d7be0',f:'Galaksi spiral terbesar ketiga di Grup Lokal, setelah Andromeda dan Bima Sakti.',note:415},
+  met:{n:'Meteor',col:'#6a5ce0',f:'Meteor adalah batu luar angkasa yang melesat sangat cepat. Kalau masuk ke udara Bumi, ia terbakar dan tampak seperti bintang jatuh.',note:880},
+  ast:{n:'Asteroid',col:'#7d7d8c',f:'Asteroid adalah batu sisa pembentukan Tata Surya. Kebanyakan berkumpul di sabuk antara Mars dan Jupiter.',note:233},
+  ufo:{n:'Alien Penjelajah',col:'#5fa82e',f:'Sampai sekarang belum ada bukti makhluk luar angkasa. Ilmuwan terus mencarinya dengan teleskop raksasa.',note:698},
   sun:{n:'Matahari',col:'#e0a400',f:'Matahari adalah bintang. Besarnya cukup untuk memuat lebih dari satu juta Bumi.',note:262},
   mer:{n:'Merkurius',col:'#8d8d99',f:'Planet terkecil dan paling dekat Matahari. Satu tahunnya cuma 88 hari.',note:294},
   ven:{n:'Venus',col:'#e08a1e',f:'Planet terpanas, sekitar 465 derajat Celsius, karena awan tebalnya memerangkap panas.',note:330},
@@ -97,6 +149,92 @@ const INFO={
   plu:{n:'Pluto',col:'#a58a6d',f:'Planet kerdil di tepi Tata Surya. Di permukaannya ada dataran es berbentuk hati.',note:659}
 };
 const KEYS=Object.keys(INFO),found=new Set(),bump={};
+// ===== Dua bahasa =====
+// ATURAN: setiap benda baru wajib punya entri di INFO (Indonesia) DAN di EN (Inggris), dan setiap teks antarmuka baru masuk ke UI.id dan UI.en.
+const EN={
+  core:{n:'Sagittarius A*',f:'The supermassive black hole at the center of the Milky Way. It has about 4 million times the mass of the Sun.'},
+  sol:{n:'Our Solar System',f:"The Solar System sits in one of the Milky Way's arms, about 26,000 light-years from the center."},
+  neb:{n:'Nebula',f:'A nebula is a giant cloud of gas and dust where new stars are born.'},
+  clu:{n:'Star Cluster',f:'A star cluster is a group of hundreds to millions of stars that were born together.'},
+  and:{n:'Andromeda Galaxy M31-NGC 224',f:'Our big neighbor, about 2.5 million light-years away. One day it will meet the Milky Way.'},
+  m31:{n:'Black Hole M31*',s:'M31*',f:'The supermassive black hole at the center of Andromeda. It has about 100 million times the mass of the Sun.'},
+  pa99:{n:'Star PA-99-N2',s:'PA-99-N2',f:'A star in Andromeda whose light seemed to brighten in 1999, bent by the gravity of an object in front of it.'},
+  pa99b:{n:'Planet PA-99-N2b',s:'PA-99-N2b',f:'The first planet candidate outside the Milky Way. Its existence is still unconfirmed.'},
+  m31rv:{n:'Star M31-RV',s:'M31-RV',f:'A star that suddenly flared bright red in 1988, then faded again.'},
+  m32:{n:'Satellite Galaxy M32',s:'M32',f:'A small, dense galaxy that circles Andromeda, like a moon around a planet.'},
+  m110:{n:'Satellite Galaxy M110',s:'M110',f:"An oval dwarf galaxy, another of Andromeda's satellites. Andromeda has at least 20 of them."},
+  open:{n:'Open Cluster',f:'A loose group of young stars in the disk of a galaxy. The Pleiades is one example.'},
+  glob:{n:'Globular Cluster',f:'A very dense ball of old stars in the halo of a galaxy. Omega Centauri is one example.'},
+  bsg:{n:'Blue Supergiant',f:'A huge, very hot star. It lives fast and ends as a supernova.'},
+  ms:{n:'Main Sequence Star',s:'Main Sequence',f:'A stable adult star, like our Sun. Most stars are in this stage.'},
+  rd:{n:'Red Dwarf',f:'A small, dim, cool star. It can live for trillions of years.'},
+  bd:{n:'Brown Dwarf',f:'A failed star: too small to shine like a normal star.'},
+  rg:{n:'Red Giant',f:'An old star that swells up and turns red as its fuel runs low.'},
+  bs:{n:'Blue Straggler',f:'A blue star in an old cluster that looks oddly young, probably two stars that merged into one.'},
+  wd:{n:'White Dwarf',f:'The dense leftover core of a Sun-like star, about the size of Earth.'},
+  sn:{n:'Supernova',f:"A huge explosion at the end of a big star's life. For a moment it can outshine a whole galaxy."},
+  ns:{n:'Neutron Star',f:'The super-dense remains of a supernova: a spoonful of it weighs as much as a mountain.'},
+  pn:{n:'Planetary Nebula',f:'A colorful shell of gas shed by an old star, with a white dwarf at its center.'},
+  bar:{n:'Galactic Bar',f:'A bar of old stars across the middle of the Milky Way. That is why it is called a barred spiral galaxy.'},
+  rem:{n:'Dead Stars',f:'Near the galactic center there are many neutron stars and small black holes, the remains of big stars.'},
+  fermi:{n:'Fermi Bubbles',f:'Two giant bubbles of gamma rays above and below the galactic center, each about 25,000 light-years tall.'},
+  ori:{n:'Orion Nebula',f:'The nearest star factory to Earth, about 1,300 light-years away. You can see it with the naked eye in Orion.'},
+  car:{n:'Carina Nebula',f:'A giant nebula where massive stars are born, including the very bright Eta Carinae.'},
+  eag:{n:'Eagle Nebula',f:'Home of the Pillars of Creation, the towers of gas and dust made famous by the Hubble telescope.'},
+  ringn:{n:'Ring Nebula',f:'A ring-shaped planetary nebula: a shell of gas shed by an old star.'},
+  crab:{n:'Crab Nebula',f:'The remains of a supernova that people saw in the year 1054. A fast-spinning neutron star sits at its center.'},
+  ple:{n:'Pleiades',f:'The Seven Sisters open cluster. Its stars are young, hot, and blue.'},
+  sir:{n:'Sirius',f:'The brightest star in the night sky, only 8.6 light-years away.'},
+  bet:{n:'Betelgeuse',f:"A red supergiant on Orion's shoulder. One day it will explode as a supernova."},
+  acen:{n:'Alpha Centauri',f:'The nearest star system to the Sun, about 4.2 to 4.4 light-years away.'},
+  pol:{n:'Polaris',f:"The North Star. It sits almost exactly above Earth's north pole, so people use it to find direction."},
+  trap:{n:'TRAPPIST-1',f:'A red dwarf star with seven Earth-sized planets. Some are in the habitable zone.'},
+  cyg:{n:'Cygnus X-1',f:'The first stellar black hole ever found. It pulls gas from its companion star.'},
+  omc:{n:'Omega Centauri',f:'The largest globular cluster in the Milky Way, with about 10 million stars.'},
+  m13:{n:'Hercules Cluster M13',s:'M13',f:'A famous globular cluster in the northern sky. In 1974 humans sent the Arecibo radio message toward it.'},
+  tuc:{n:'47 Tucanae',f:"The second-brightest globular cluster in the sky, seen from Earth's southern hemisphere."},
+  lmc:{n:'Large Magellanic Cloud',f:"The Milky Way's largest satellite galaxy, about 160,000 light-years from us. Visible from southern skies."},
+  smc:{n:'Small Magellanic Cloud',f:'A dwarf galaxy next to the Large Magellanic Cloud, about 200,000 light-years away.'},
+  sgrd:{n:'Sagittarius Dwarf Galaxy',s:'Sagittarius Dwarf',f:"A small galaxy being slowly pulled apart by the Milky Way's gravity."},
+  cmd:{n:'Canis Major Dwarf Galaxy',s:'Canis Major Dwarf',f:'A candidate for our closest satellite galaxy. Some scientists still debate it.'},
+  p1p2:{n:'Double Nucleus P1 & P2',s:'P1 & P2',f:"Andromeda's center appears to have two bright cores. The black hole M31* sits in P2."},
+  ringf:{n:'Ring of Fire',f:"A giant dust ring in Andromeda's disk, a factory where new stars are born."},
+  ngc206:{n:'NGC 206',f:'The brightest star cloud in Andromeda, full of young blue stars.'},
+  sn1885:{n:'SN 1885A',f:'The first supernova ever observed in another galaxy, seen in 1885.'},
+  g1:{n:'Mayall II (G1)',f:'The largest globular cluster in Andromeda, thought to be the leftover core of a dwarf galaxy it swallowed.'},
+  ngc147:{n:'Satellite Galaxy NGC 147',s:'NGC 147',f:'A dwarf satellite of Andromeda. It is paired with its neighbor, NGC 185.'},
+  ngc185:{n:'Satellite Galaxy NGC 185',s:'NGC 185',f:'A dwarf satellite of Andromeda that still has a little gas left to form stars.'},
+  gss:{n:'Giant Stellar Stream',f:'A trail of stars from a small galaxy that Andromeda tore apart and swallowed.'},
+  m33:{n:'Triangulum Galaxy M33',s:'Triangulum M33',f:'The third-largest spiral galaxy in the Local Group, after Andromeda and the Milky Way.'},
+  met:{n:'Meteor',f:"A meteor is a space rock moving very fast. When it enters Earth's air it burns up and looks like a shooting star."},
+  ast:{n:'Asteroid',f:'Asteroids are rocks left over from the birth of the Solar System. Most gather in the belt between Mars and Jupiter.'},
+  ufo:{n:'Alien Explorer',f:'So far there is no proof of alien life. Scientists keep searching with giant telescopes.'},
+  sun:{n:'Sun',f:'The Sun is a star. It is big enough to hold more than a million Earths.'},
+  mer:{n:'Mercury',f:'The smallest planet and the closest to the Sun. Its year lasts only 88 days.'},
+  ven:{n:'Venus',f:'The hottest planet, about 465 degrees Celsius, because its thick clouds trap heat.'},
+  ear:{n:'Earth',f:'Our home! The only place we know that has life.'},
+  moon:{n:'Moon',f:"Earth's only natural satellite. It drifts away from us by about 3.8 centimeters every year."},
+  mar:{n:'Mars',f:'The Red Planet. It has Olympus Mons, the tallest mountain in the Solar System.'},
+  jup:{n:'Jupiter',f:'The largest planet. Its Great Red Spot is a storm bigger than Earth.'},
+  sat:{n:'Saturn',f:'Its rings are made of chunks of ice and rock, from the size of sand grains to the size of houses.'},
+  ura:{n:'Uranus',f:'The planet that spins lying down: its axis is tilted almost 98 degrees.'},
+  nep:{n:'Neptune',f:'The farthest planet. It has the fastest winds in the Solar System, over 2,000 km per hour.'},
+  plu:{n:'Pluto',f:'A dwarf planet at the edge of the Solar System. It has a heart-shaped plain of ice on its surface.'}
+};
+const UI={
+  id:{clu:'Gugus Bintang',found:(a,b)=>'★ Ditemukan '+a+' dari '+b,toSol:'Ke Tata Surya',toMW:'Ke Bima Sakti',hint:'Sentuh semuanya!',done:'Hebat! Semua benda langit sudah kamu temukan',sol:'Tata Surya',ly:['12.500 tc','25.000 tc','37.500 tc','50.000 tc'],arms:['Lengan Perseus','Lengan Sagittarius','Lengan Scutum-Centaurus'],orion:'Lengan Orion',scale:'25.000 tahun cahaya',other:'English',aria:'Peta galaksi: sentuh benda langit untuk melihat faktanya, geser untuk berpindah, cubit atau scroll untuk zoom'},
+  en:{clu:'Star Cluster',found:(a,b)=>'★ Found '+a+' of '+b,toSol:'To Solar System',toMW:'To Milky Way',hint:'Tap everything!',done:'Great job! You found every object in the sky',sol:'Solar System',ly:['12,500 ly','25,000 ly','37,500 ly','50,000 ly'],arms:['Perseus Arm','Sagittarius Arm','Scutum-Centaurus Arm'],orion:'Orion Arm',scale:'25,000 light-years',other:'Indonesia',aria:'Galaxy map: tap an object to see its fact, drag to move, pinch or scroll to zoom'}
+};
+let LANG='id',U=UI.id;
+KEYS.forEach(k=>INFO[k].id={n:INFO[k].n,s:INFO[k].s,f:INFO[k].f});
+function setLang(l){
+  LANG=l=='en'?'en':'id';U=UI[LANG];
+  KEYS.forEach(k=>{const s=LANG=='en'&&EN[k]?EN[k]:INFO[k].id;INFO[k].n=s.n;INFO[k].s=s.s;INFO[k].f=s.f});
+  lgb.textContent=U.other;lgb.lang=LANG=='en'?'id':'en';document.documentElement.lang=LANG;c.setAttribute('aria-label',U.aria);
+  try{localStorage.setItem('ga-lang',LANG)}catch(e){}
+}
+{let l=null;try{l=localStorage.getItem('ga-lang')}catch(e){}setLang(l||((navigator.language||'id').toLowerCase().indexOf('id')==0?'id':'en'))}
+lgb.onclick=()=>{audio();setLang(LANG=='id'?'en':'id');tone(660,.15,'sine',.1)};
 let hits=[],labels=[],sel=null,doneAt=0;
 // Planet: f = jarak orbit (bagian dari jari-jari Tata Surya), r = ukuran, sp = kecepatan relatif terhadap Bumi
 const SU=20,PLN=[
@@ -122,10 +260,10 @@ const now=()=>performance.now()/1000;
 let rot=0,pt=0,lastT=0,SP=[0,0];
 // terbang ke Tata Surya atau kembali ke seluruh galaksi
 function fly(to){
-  if(to=='sol'){follow='sol';Zt=Math.min(W,H*.8)*.44/(SU*B)}else{follow=null;Ct.x=Ct.y=0;Zt=1.3}
-  tone(to=='sol'?523:392,.25,'triangle',.1);tone(to=='sol'?784:262,.3,'sine',.1,.1);
+  if(to=='sol'){follow='sol';Zt=Math.min(W,H*.8)*.44/(SU*B)}else if(to=='and'){follow=null;Ct.x=AX;Ct.y=AY;Zt=Math.min(W,H*.8)*.46/(68*B)}else if(to=='clu'){follow=null;Ct.x=CX;Ct.y=CY;Zt=Math.min(W,H*.8)*.46/(58*B)}else{follow=null;Ct.x=Ct.y=0;Zt=1.3}
+  tone(to=='gal'?392:523,.25,'triangle',.1);tone(to=='gal'?262:784,.3,'sine',.1,.1);
 }
-nav.onclick=()=>{audio();fly(Z>4?'gal':'sol')};
+nav.onclick=()=>{audio();fly(Z>4||nearAnd()||nearClu()?'gal':'sol')};
 function tap(wx,wy,sy){
   const t=now(),S=Z*B;
   for(let i=hits.length-1;i>=0;i--){
@@ -135,6 +273,8 @@ function tap(wx,wy,sy){
       tone(I.note,.3,'triangle');tone(I.note*1.5,.35,'sine',.12,.09);
       for(let n=0;n<7;n++)pops.push({x:q.x,y:q.y,t0:t,a:n/7*6.283,r:q.r,mini:1});
       if(q.k=='sol')fly('sol');
+      if(q.k=='and'&&AR*S<70)fly('and');
+      if(q.k=='clu'&&CR*S<70)fly('clu');
       if(!found.has(q.k)){found.add(q.k);
         if(found.size==KEYS.length){doneAt=t;[523,659,784,1047,1319].forEach((f,n)=>tone(f,.5,'triangle',.13,.35+n*.11))}}
       return;
@@ -151,22 +291,29 @@ function zoomAt(sx,sy,z){
 }
 const mid=()=>{const a=[...pts.values()];return{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2,d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}};
 c.addEventListener('wheel',e=>{e.preventDefault();const r=c.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,Zt*Math.exp(-e.deltaY*.0018))},{passive:false});
+const uOff={x:0,y:0},ufoBase=()=>[Math.sin(ufoPh)*235,Math.cos(ufoPh*.63)*175-40];
+let drag=null;
+const toWorld=e=>{const r=c.getBoundingClientRect(),S=Z*B;return[(e.clientX-r.left-vx)/S+C.x,(e.clientY-r.top-vy)/S+C.y]};
 c.addEventListener('pointerdown',e=>{audio();pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pts.size==2){pinch={d:mid().d,z:Zt};pd=null}else pd={lx:e.clientX,ly:e.clientY,mv:0};
+  if(pts.size==2){pinch={d:mid().d,z:Zt};pd=null;drag=null}
+  else{pd={lx:e.clientX,ly:e.clientY,mv:0};const w=toWorld(e),u=hits.find(v=>v.k=='ufo'),S=Z*B;
+    if(u&&Math.hypot(w[0]-u.x,w[1]-u.y)<Math.max(u.r,24/S)+8/S)drag={dx:u.x-w[0],dy:u.y+8-w[1],on:false,x:u.x,y:u.y+8}}
   try{c.setPointerCapture(e.pointerId)}catch(_){}});
 c.addEventListener('pointermove',e=>{
   if(pts.has(e.pointerId))pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&pts.size==2){const m=mid(),r=c.getBoundingClientRect();zoomAt(m.x-r.left,m.y-r.top,pinch.z*m.d/pinch.d);return}
   if(!pd)return;
   const dx=e.clientX-pd.lx,dy=e.clientY-pd.ly;pd.lx=e.clientX;pd.ly=e.clientY;pd.mv+=Math.abs(dx)+Math.abs(dy);
+  if(drag){if(pd.mv>12){drag.on=true;const w=toWorld(e);drag.x=w[0]+drag.dx;drag.y=w[1]+drag.dy;c.style.cursor='grabbing'}return}
   if(pd.mv>12){follow=null;const S=Z*B;Ct.x-=dx/S;Ct.y-=dy/S;C.x=Ct.x;C.y=Ct.y;c.style.cursor='grabbing'}
 });
 function up(e){
+  if(drag&&drag.on){const b=ufoBase();uOff.x=drag.x-b[0];uOff.y=drag.y-b[1];bump.ufo=now();tone(523,.2,'triangle',.12);tone(784,.25,'sine',.1,.08);pd=null}
+  drag=null;
   if(pd&&pd.mv<=12&&pts.size==1&&e.type=='pointerup'){const r=c.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top,S=Z*B;tap((sx-vx)/S+C.x,(sy-vy)/S+C.y,sy)}
   pts.delete(e.pointerId);if(pts.size<2)pinch=null;pd=null;c.style.cursor='grab';
 }
 c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);
-
 const bounce=(k,t)=>{const a=t-(bump[k]||-9);return a<1.5?1+.3*Math.exp(-a*4)*Math.cos(a*18):1};
 const boost=(k,t)=>{const a=t-(bump[k]||-99);return 1+7*Math.exp(-a*.9)};
 function card(t){
@@ -187,14 +334,157 @@ function card(t){
   x.restore();
 }
 // satu benda yang bisa disentuh: catat untuk ketukan, beri nama bila cukup besar di layar
-function body(k,cx,cy,r,S,lab){hits.push({k,x:cx,y:cy,r});if(lab&&r*S>5)labels.push({t:INFO[k].n,x:cx,y:cy+r,k})}
+function body(k,cx,cy,r,S,lab){hits.push({k,x:cx,y:cy,r});if(lab&&r*S>5)labels.push({t:INFO[k].s||INFO[k].n,x:cx,y:cy+r,k})}
 
+// meteor: batu ungu berkawah dengan ekor api biru, melesat ke kiri-bawah
+function meteor(cx,cy,r){
+  const ux=.73,uy=-.68,P=(L,w)=>j=>{const q=(h(j*3+F)-.5)*r*.3;return[[cx-uy*r*w,cy+ux*r*w],[cx+ux*r*L*.5-uy*r*w*.9+q,cy+uy*r*L*.5+ux*r*w*.9],[cx+ux*r*L,cy+uy*r*L],[cx+ux*r*L*.5+uy*r*w*.9,cy+uy*r*L*.5-ux*r*w*.9+q],[cx+uy*r*w,cy-ux*r*w],[cx-ux*r*1.2,cy-uy*r*1.2]]};
+  draw(P(5.4,1.3),'#8fd3ff',2.4);draw(P(3.4,.85),'#dff6ff',1.4);
+  for(let i=0;i<5;i++){const p=(lastT*1.6+i/5)%1;x.fillStyle='rgba(223,246,255,'+(1-p)+')';x.beginPath();x.arc(cx+ux*r*(2+p*4)+(h(i*3)-.5)*r*2,cy+uy*r*(2+p*4)+(h(i*5)-.5)*r*2,r*.12*(1-p)+r*.04,0,6.283);x.fill()}
+  draw(j=>blob(cx,cy,r,r,610,j),'#7a6cf0',2.6);
+  x.save();x.beginPath();x.arc(cx,cy,r*.93,0,6.283);x.clip();x.fillStyle='rgba(60,40,160,.45)';[[-.3,-.35,.3],[.35,.1,.24],[-.2,.45,.2],[.3,-.5,.16]].forEach(q=>{x.beginPath();x.ellipse(cx+q[0]*r,cy+q[1]*r,q[2]*r,q[2]*r*.8,.4,0,6.283);x.fill()});x.restore();
+}
+// asteroid: batu abu-abu berkawah yang berputar pelan
+function asteroid(cx,cy,r,rot,sd){
+  x.save();x.translate(cx,cy);x.rotate(rot);
+  draw(j=>{const p=[];for(let i=0;i<12;i++){const a=i/12*6.283,k=1+.24*(h(sd+i*3.7)-.5)+.03*(2*h(i+j*29+F*5.3)-1);p.push([Math.cos(a)*r*k,Math.sin(a)*r*.82*k])}return p},'#a9a9b8',2.4);
+  [[-.3,-.2,.26],[.3,.15,.2],[0,.4,.15],[.25,-.4,.13]].forEach(q=>{x.fillStyle='rgba(70,70,90,.5)';x.beginPath();x.ellipse(q[0]*r,q[1]*r,q[2]*r,q[2]*r*.75,0,0,6.283);x.fill();x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=1.2*LWS;x.beginPath();x.arc(q[0]*r,q[1]*r,q[2]*r,.3,2.2);x.stroke()});
+  x.restore();
+}
+// alien hijau berbentuk buah pir di dalam piring terbang ungu
+function ufo(cx,cy,s,t){
+  x.save();x.translate(cx,cy);x.rotate(Math.sin(t*1.7)*.08);
+  glow(0,s*.55,s*1.3,'rgba(190,120,255,.35)');
+  for(const d of[-1,1])draw(j=>blob(d*s*.35,s*.5,s*.1,s*.08,625+d,j),'#7a4a9e',1.6);
+  draw(j=>blob(0,s*.14,s,s*.4,620,j),'#b06fd8',2.6);
+  x.fillStyle='#3a1f52';x.beginPath();x.ellipse(0,0,s*.6,s*.2,0,0,6.283);x.fill();
+  x.strokeStyle=BLUE;x.lineWidth=2*LWS;x.lineCap='round';x.beginPath();x.moveTo(s*.04,-s*.95);x.quadraticCurveTo(s*.1,-s*1.2,-s*.04,-s*1.36);x.stroke();
+  draw(j=>blob(-s*.04,-s*1.4,s*.09,s*.09,622,j),'#8fd14f',1.6);
+  draw(j=>{const p=[];for(let i=0;i<14;i++){const a=i/14*6.283,k=jit(621,i,j,.03);p.push([Math.cos(a)*s*(.4+.1*Math.sin(a))*k,-s*.42+Math.sin(a)*s*.6*k])}return p},'#8fd14f',2.6);
+  x.fillStyle='rgba(255,130,150,.55)';for(const d of[-1,1]){x.beginPath();x.ellipse(d*s*.31,-s*.3,s*.08,s*.05,0,0,6.283);x.fill()}
+  for(const d of[-1,1]){x.fillStyle='#16110f';x.beginPath();x.arc(d*s*.17,-s*.45,s*.13,0,6.283);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(d*s*.17-s*.04,-s*.5,s*.045,0,6.283);x.fill()}
+  x.strokeStyle='#16110f';x.lineWidth=1.6*LWS;x.beginPath();x.arc(-s*.04,-s*.28,s*.04,.2,2.94);x.arc(s*.04,-s*.28,s*.04,.2,2.94);x.stroke();
+  x.beginPath();x.ellipse(0,s*.02,s*.6,s*.2,0,.05,3.09);x.strokeStyle='#b06fd8';x.lineWidth=s*.15;x.lineCap='butt';x.stroke();
+  x.strokeStyle=BLUE;x.lineWidth=1.6*LWS;x.beginPath();x.ellipse(0,s*.03,s*.68,s*.26,0,.05,3.09);x.stroke();
+  draw(j=>blob(s*.36,-s*.02,s*.09,s*.07,623,j),'#8fd14f',1.6);
+  for(let i=0;i<5;i++){const a=.42+i*.575,lx=Math.cos(a)*s*.84,ly=s*.14+Math.sin(a)*s*.3;x.fillStyle=SUN;x.globalAlpha=.55+.45*Math.abs(Math.sin(t*4+i));x.beginPath();x.arc(lx,ly,s*.075,0,6.283);x.fill();x.globalAlpha=1;x.strokeStyle=BLUE;x.lineWidth=1.2*LWS;x.stroke()}
+  x.restore();
+}
+// Andromeda: dari jauh berupa spiral berkilau; setelah didekati tampak lengan, lubang hitam, bintang, planet, dan dua galaksi satelitnya
+const AX=-430,AY=-340,AR=60,nearAnd=()=>Math.hypot(C.x-AX,C.y-AY)<140;
+function andromeda(t,S){
+  const k=bounce('and',t),px=AR*S,rt=(ex,ey)=>[AX+ex*.878-ey*.479,AY+ex*.479+ey*.878];
+  glow(AX,AY,AR*1.5*k,'rgba(170,140,255,.4)');
+  // galaksi satelit mengitari Andromeda
+  const sat=[['m32',t*.11+1,62,6,6,'rgba(255,230,190,'],['m110',t*.07+3.6,92,11,6.5,'rgba(200,215,255,'],['ngc147',t*.045+5.2,122,7,5,'rgba(255,225,200,'],['ngc185',t*.04+.4,138,7,5.5,'rgba(215,220,255,']];
+  poi('m33',AX-185,AY+175,22,'spiral','#9ab8ff',t,S,5);
+  if(px>=70){x.setLineDash([5/S,7/S]);x.strokeStyle='rgba(190,170,255,.3)';x.lineWidth=1.2/S;sat.forEach(q=>{x.beginPath();x.ellipse(AX,AY,q[2],q[2]*.6,0,0,6.283);x.stroke()});x.setLineDash([])}
+  sat.forEach(q=>{const sx=AX+Math.cos(q[1])*q[2],sy=AY+Math.sin(q[1])*q[2]*.6,b=bounce(q[0],t);
+    x.save();x.translate(sx,sy);x.rotate(.4);x.scale(b,b*q[4]/q[3]);glow(0,0,q[3]*1.5,q[5]+'.95)');glow(0,0,q[3]*.6,'rgba(255,250,235,.95)');x.restore();
+    if(px>=70)body(q[0],sx,sy,q[3],S,1)});
+  if(px<70){ // dari jauh
+    x.save();x.translate(AX,AY);x.rotate(.5+t*.02);x.scale(k,k*.5);glow(0,0,90,'rgba(190,160,255,.75)');
+    x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=5;x.lineCap='round';for(let a=0;a<2;a++){x.beginPath();for(let f=0;f<=1.001;f+=.1){const rr=90*(.15+.75*f),th=a*3.1416+f*3.2;f?x.lineTo(Math.cos(th)*rr,Math.sin(th)*rr):x.moveTo(Math.cos(th)*rr,Math.sin(th)*rr)}x.stroke()}
+    glow(0,0,26,'rgba(255,240,210,.95)');x.restore();body('and',AX,AY,AR,S,1);return}
+  body('and',AX,AY,AR,S,0);
+  // cincin debu tempat bintang lahir
+  x.save();x.translate(AX,AY);x.rotate(.5);x.strokeStyle='rgba(255,158,203,.4)';x.lineWidth=3.5/S+1.2;x.beginPath();x.ellipse(0,0,AR*.66,AR*.33,0,0,6.283);x.stroke();x.restore();
+  // lengan spiral
+  for(let a=0;a<2;a++)for(let i=0;i<13;i++){const f=(i+1)/13,r=AR*(.2+.8*f)*k,th=a*3.1416+f*3.7+t*.03,p=rt(Math.cos(th)*r,Math.sin(th)*r*.5),s=AR*(.085-.035*f)*(1+.14*Math.sin(t*2.4+i*.7+a));
+    draw(j=>blob(p[0],p[1],s,s*.8,700+a*20+i,j),['#b388ff','#7da2ff','#ff9ecb','#9ae6ff'][(a+i)%4],1.6);
+    const q=h(a*50+i*5);draw(j=>blob(p[0]+(q-.5)*13,p[1]+(h(q*9)-.5)*10,s*.4,s*.35,740+i,j),['#9ae6ff','#b388ff','#ffd9a0'][i%3],1.2)}
+  poi('ngc206',...rt(-46,7),4.5,'ocl','#7da2ff',t,S,5);
+  {const p=rt(0,-20.5);body('ringf',p[0],p[1],5,S,1)}
+  poi('g1',AX+72,AY+62,7,'glob','#ffe2a8',t,S,5);
+  {const b=bounce('gss',t);x.strokeStyle='rgba(200,215,255,.28)';x.lineWidth=7*b;x.lineCap='round';x.beginPath();x.moveTo(AX-6,AY+34);x.quadraticCurveTo(AX-40,AY+70,AX-22,AY+108);x.stroke();body('gss',AX-30,AY+76,8,S,1)}
+  {const p=rt(8,-4.5);glow(p[0],p[1],3.6,'rgba(255,240,200,.9)');glow(AX+2,AY+1.2,2.2,'rgba(190,210,255,.9)');body('p1p2',p[0],p[1],3,S,1)}
+  poi('sn1885',...rt(13,6),2.2,'rem','#ffb347',t,S,4);
+  // lubang hitam M31* di pusat
+  {const b=bounce('m31',t),r=5.5*b;glow(AX,AY,r*3.2,'rgba(255,190,110,.6)');x.save();x.translate(AX,AY);x.rotate(-.3);draw(j=>blob(0,0,r*1.9,r*.6,760,j),'#ffb347',1.6);x.restore();
+   x.fillStyle='#07051a';x.beginPath();x.arc(AX,AY,r*.75,0,6.283);x.fill();x.strokeStyle='#c9b3ff';x.lineWidth=1.6/S+.2;x.stroke();
+   if(r*S>12){x.fillStyle='#fff';for(const d of[-1,1]){x.beginPath();x.arc(AX+d*r*.25,AY-r*.1,r*.08,0,6.283);x.fill()}x.strokeStyle='#fff';x.lineWidth=1.2/S+.1;x.beginPath();x.arc(AX,AY+r*.05,r*.2,.3,2.84);x.stroke()}
+   body('m31',AX,AY,r,S,1)}
+  // bintang M31-RV: merah, berdenyut
+  {const p=rt(-27,-4),b=bounce('m31rv',t),r=(2.6+1.3*Math.abs(Math.sin(t*1.8)))*b;glow(p[0],p[1],r*3.2,'rgba(255,80,60,.55)');draw(j=>starPts(p[0],p[1],r*1.4,770,j),'#ff5a4a',1.6,1);body('m31rv',p[0],p[1],r*1.3,S,1)}
+  // bintang PA-99-N2 dengan planet PA-99-N2b
+  {const p=rt(30,6),b=bounce('pa99',t),r=3*b;angA+=.016*boost('pa99b',t);glow(p[0],p[1],r*3,'rgba(255,220,120,.55)');
+   x.setLineDash([2.5/S,3/S]);x.strokeStyle='rgba(160,200,255,.5)';x.lineWidth=1/S;x.beginPath();x.ellipse(p[0],p[1],11,7.2,0,0,6.283);x.stroke();x.setLineDash([]);
+   draw(j=>starPts(p[0],p[1],r*1.4,771,j),SUN,1.6,1);body('pa99',p[0],p[1],r*1.3,S,1);
+   const qx=p[0]+Math.cos(angA)*11,qy=p[1]+Math.sin(angA)*7.2,pr=2.6*bounce('pa99b',t);draw(j=>blob(qx,qy,pr,pr,772,j),'#6ee7a0',1.4);body('pa99b',qx,qy,pr,S,1)}
+}
+// Gugus bintang: dari jauh segerombol bintang; setelah didekati tampak gugus terbuka, gugus bola, dan tahap-tahap hidup bintang
+const CX=-200,CY=150,CR=56,nearClu=()=>Math.hypot(C.x-CX,C.y-CY)<110&&Z>2;
+function cluster(t,S){
+  const px=CR*S,k=bounce('clu',t);
+  if(px<70){glow(CX,CY,60,'rgba(120,190,255,.3)');
+    for(let i=0;i<16;i++){const a=h(i*2.1)*6.283+t*.1,r=Math.pow(h(i*4.7),.7)*42*k;draw(j=>starPts(CX+Math.cos(a)*r,CY+Math.sin(a)*r,(3+h(i*1.3)*5)*(1+.25*Math.sin(t*4+i)),520+i,j),['#9ae6ff','#ffffff','#ffd95a'][i%3],1.4,1)}
+    body('clu',CX,CY,44,S,1);return}
+  body('clu',CX,CY,CR,S,0);
+  // satu bintang bulat: cahaya + bola + wajah bila cukup besar
+  const ball=(key,x0,y0,r,col,gl,sd)=>{const b=bounce(key,t),rr=r*b*(1+.04*Math.sin(t*3+sd));glow(x0,y0,rr*2.6,gl);draw(j=>blob(x0,y0,rr,rr,sd,j),col,1.8);if(rr*S>15)face(x0,y0,rr*.9);body(key,x0,y0,rr,S,1);return rr};
+  // gugus terbuka: longgar, bintang muda
+  const ox=CX-27,oy=CY-2;glow(ox,oy,30,'rgba(90,150,255,.22)');body('open',ox,oy,24,S,0);labels.push({t:INFO.open.n,x:ox,y:oy+23,k:'open'});
+  for(let i=0;i<14;i++){const a=h(i*3.1)*6.283,r=6+h(i*5.3)*17;draw(j=>starPts(ox+Math.cos(a)*r,oy+Math.sin(a)*r,(.9+h(i*1.7)*.9)*(1+.3*Math.sin(t*4+i)),800+i,j),['#9ae6ff','#ffffff','#cfe0ff'][i%3],1,1)}
+  ball('bsg',ox-9,oy-8,5.2,'#9fc4ff','rgba(120,170,255,.6)',820);
+  ball('ms',ox+8,oy-11,3,SUN,'rgba(255,220,120,.55)',821);
+  [['#7da2ff',-3.4,3.2],['#ffffff',-1.2,4.6],['#ff9f40',1.6,4.4],['#ff5a4a',3.6,3]].forEach((q,i)=>draw(j=>blob(ox+8+q[1],oy-11+q[2]+1.2,.75,.75,824+i,j),q[0],1));
+  ball('rd',ox+11,oy+8,1.9,'#ff5a4a','rgba(255,90,70,.5)',822);
+  {const bx=ox-7,by=oy+10,r=ball('bd',bx,by,2,'#a56a4a','rgba(165,106,74,.4)',823);x.save();x.beginPath();x.arc(bx,by,r*.92,0,6.283);x.clip();x.strokeStyle='rgba(70,35,20,.55)';x.lineWidth=r*.22;[-.4,.1,.55].forEach(q=>{x.beginPath();x.moveTo(bx-r,by+q*r);x.lineTo(bx+r,by+q*r);x.stroke()});x.restore()}
+  // gugus bola: padat, bintang tua
+  const gx=CX+28,gy=CY+8;glow(gx,gy,30,'rgba(255,225,170,.4)');glow(gx,gy,12,'rgba(255,245,220,.55)');body('glob',gx,gy,22,S,0);labels.push({t:INFO.glob.n,x:gx,y:gy+21,k:'glob'});
+  for(let i=0;i<170;i++){const a=h(i*2.1)*6.283+t*.02,r=Math.pow(h(i*4.7),1.7)*21,s=(.35+h(i*1.3)*.6);x.fillStyle=['#fff3d6','#ffd9a0','#ffffff','#ffb38a'][i%4];x.globalAlpha=.45+.5*Math.abs(Math.sin(t*2+i));x.beginPath();x.arc(gx+Math.cos(a)*r,gy+Math.sin(a)*r,s*.55,0,6.283);x.fill()}x.globalAlpha=1;
+  ball('rg',gx-7,gy-7,4.6,'#ff7a45','rgba(255,110,60,.55)',830);
+  ball('bs',gx+8,gy-8,2.3,'#7db4ff','rgba(120,170,255,.6)',831);
+  ball('wd',gx+7,gy+9,1.5,'#ffffff','rgba(220,235,255,.8)',832);
+  // supernova: meledak berulang
+  {const sx=CX-2,sy=CY-40,p=(t*.3)%1,b=bounce('sn',t),r=(2+7*p)*b;glow(sx,sy,r*2.4,'rgba(255,255,255,'+(.8*(1-p))+')');glow(sx,sy,r*1.5,'rgba(255,150,220,'+(.7*(1-p*.6))+')');
+   x.strokeStyle='rgba(255,220,240,'+(1-p)+')';x.lineWidth=1.6/S+.3;x.beginPath();x.arc(sx,sy,r*1.3,0,6.283);x.stroke();draw(j=>starPts(sx,sy,3.2*b*(1+.3*Math.sin(t*9)),840,j),'#ffffff',1.6,1);body('sn',sx,sy,5,S,1)}
+  // bintang neutron: kecil, berputar memancarkan sinar
+  {const nx=CX+24,ny=CY-34,b=bounce('ns',t);x.save();x.translate(nx,ny);x.rotate(t*5);x.fillStyle='rgba(160,220,255,.55)';for(const d of[0,3.1416]){x.rotate(d);x.beginPath();x.moveTo(0,0);x.lineTo(9*b,-1.3);x.lineTo(9*b,1.3);x.closePath();x.fill()}x.restore();
+   glow(nx,ny,4,'rgba(160,220,255,.8)');draw(j=>blob(nx,ny,1.3*b,1.3*b,841,j),'#dff1ff',1.2);body('ns',nx,ny,2.2,S,1)}
+  // nebula planeter: cincin gas warna-warni dengan katai putih di tengah
+  {const qx=CX-32,qy=CY+36,b=bounce('pn',t);[['rgba(110,231,200,.75)',7,5.2],['rgba(255,159,64,.7)',5,3.8],['rgba(255,126,182,.7)',3.2,2.5]].forEach((q,i)=>{x.strokeStyle=q[0];x.lineWidth=1.5;x.beginPath();x.ellipse(qx,qy,q[1]*b*(1+.05*Math.sin(t*2+i)),q[2]*b,.4+i*.5+t*.05,0,6.283);x.stroke()});
+   glow(qx,qy,3,'rgba(255,255,255,.9)');x.fillStyle='#fff';x.beginPath();x.arc(qx,qy,.6,0,6.283);x.fill();body('pn',qx,qy,6,S,1)}
+}
+// ===== Peta: benda bernama digambar dari tabel. Tiap jenis punya gambar sendiri dan hanya tampil bila cukup besar di layar =====
+const ha=(hex,a)=>'rgba('+parseInt(hex.substr(1,2),16)+','+parseInt(hex.substr(3,2),16)+','+parseInt(hex.substr(5,2),16)+','+a+')';
+function poi(k,x0,y0,r,kind,hex,t,S,minPx){
+  if(r*S<minPx)return;const R2=r*bounce(k,t);
+  if(kind=='neb'){glow(x0-R2*.3,y0,R2*1.3,ha(hex,.6));glow(x0+R2*.4,y0+R2*.2,R2,'rgba(255,170,90,.4)');glow(x0,y0-R2*.4,R2*.8,'rgba(140,120,255,.45)');for(let i=0;i<3;i++)draw(j=>starPts(x0+(h(i*3+r)-.5)*R2*1.4,y0+(h(i*5+r)-.5)*R2,R2*.17*(1+.3*Math.sin(t*3+i)),900+i,j),'#ffffff',1,1)}
+  else if(kind=='glob'){glow(x0,y0,R2*1.5,ha(hex,.45));glow(x0,y0,R2*.6,'rgba(255,245,220,.7)');x.fillStyle='#fff3d6';for(let i=0;i<40;i++){const a=h(i*2.1+r)*6.283,q=Math.pow(h(i*4.7+r),1.6)*R2;x.globalAlpha=.4+.5*Math.abs(Math.sin(t*2+i));x.beginPath();x.arc(x0+Math.cos(a)*q,y0+Math.sin(a)*q,R2*.03+.1,0,6.283);x.fill()}x.globalAlpha=1}
+  else if(kind=='dwarf'){glow(x0-R2*.25,y0-R2*.1,R2*1.1,ha(hex,.55));glow(x0+R2*.35,y0+R2*.15,R2*.8,ha(hex,.45));glow(x0,y0,R2*.45,'rgba(255,250,235,.6)');x.fillStyle='#fff';for(let i=0;i<14;i++){x.globalAlpha=.3+.5*h(i+r);x.beginPath();x.arc(x0+(h(i*3+r)-.5)*R2*1.6,y0+(h(i*5+r)-.5)*R2,.12+R2*.02,0,6.283);x.fill()}x.globalAlpha=1}
+  else if(kind=='star'){glow(x0,y0,R2*2.8,ha(hex,.6));draw(j=>starPts(x0,y0,R2*(1+.15*Math.sin(t*4+r*9)),910,j),hex,1.2,1)}
+  else if(kind=='ocl'){glow(x0,y0,R2*1.4,ha(hex,.35));for(let i=0;i<7;i++){const a=i*.9+r,q=R2*(.25+.6*h(i*3.3));draw(j=>starPts(x0+Math.cos(a)*q,y0+Math.sin(a)*q,R2*.2*(1+.25*Math.sin(t*4+i)),920+i,j),'#bfe0ff',1,1)}}
+  else if(kind=='ring'){[[hex,1,.75],['#ff9f40',.7,.5],['#ff7eb6',.42,.3]].forEach(q=>{x.strokeStyle=ha(q[0],.8);x.lineWidth=R2*.14;x.beginPath();x.ellipse(x0,y0,R2*q[1],R2*q[2],.4+t*.05,0,6.283);x.stroke()});x.fillStyle='#fff';x.beginPath();x.arc(x0,y0,R2*.1,0,6.283);x.fill()}
+  else if(kind=='rem'){glow(x0,y0,R2*1.5,ha(hex,.5));x.strokeStyle=ha(hex,.85);x.lineWidth=R2*.09;x.lineCap='round';for(let i=0;i<9;i++){const a=i*.7+h(i)*.4,q=R2*(.5+.5*h(i*3)+.08*Math.sin(t*3+i));x.beginPath();x.moveTo(x0+Math.cos(a)*R2*.2,y0+Math.sin(a)*R2*.2);x.lineTo(x0+Math.cos(a)*q,y0+Math.sin(a)*q);x.stroke()}x.fillStyle='#dff1ff';x.beginPath();x.arc(x0,y0,R2*.12,0,6.283);x.fill()}
+  else if(kind=='bh'){glow(x0,y0,R2*2.4,ha(hex,.5));x.strokeStyle='#ffb347';x.lineWidth=R2*.3;x.beginPath();x.ellipse(x0,y0,R2*1.3,R2*.45,-.3,0,6.283);x.stroke();x.fillStyle='#07051a';x.beginPath();x.arc(x0,y0,R2*.7,0,6.283);x.fill()}
+  else if(kind=='spiral'){x.save();x.translate(x0,y0);x.rotate(.8+t*.02);x.scale(1,.6);glow(0,0,R2,ha(hex,.7));x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=R2*.06;x.lineCap='round';for(let a=0;a<2;a++){x.beginPath();for(let f=0;f<=1.001;f+=.1){const rr=R2*(.15+.75*f),th=a*3.1416+f*3.2;f?x.lineTo(Math.cos(th)*rr,Math.sin(th)*rr):x.moveTo(Math.cos(th)*rr,Math.sin(th)*rr)}x.stroke()}glow(0,0,R2*.3,'rgba(255,240,210,.9)');x.restore()}
+  else if(kind=='trap'){glow(x0,y0,R2*2,ha(hex,.5));draw(j=>blob(x0,y0,R2*.35,R2*.35,930,j),hex,1.2);for(let i=0;i<7;i++){const a=t*(1.6/(1+i*.4))+i,q=R2*(.55+i*.13);x.fillStyle=['#9ae6ff','#6ee7a0','#ffd9a0'][i%3];x.beginPath();x.arc(x0+Math.cos(a)*q,y0+Math.sin(a)*q*.6,R2*.06,0,6.283);x.fill()}}
+  body(k,x0,y0,r,S,1);
+}
+// halo dan galaksi satelit Bima Sakti: [kunci, x, y, ukuran, jenis, warna, ukuran layar minimum]
+const MWH=[['omc',-62,-98,11,'glob','#ffe2a8',5],['m13',74,-112,9,'glob','#ffe2a8',5],['tuc',118,92,9,'glob','#ffe2a8',5],['lmc',128,172,17,'dwarf','#cfe0ff',6],['smc',188,150,11,'dwarf','#e3d6ff',6],['sgrd',-22,128,13,'dwarf','#ffd9c0',6],['cmd',-128,-52,10,'dwarf','#ffe9c4',6]];
+// benda di piringan Bima Sakti: [kunci, jarak dari pusat, sudut, ukuran, jenis, warna, ukuran layar minimum]; ikut berputar bersama galaksi
+const MWP=[['ori',90,2.62,5,'neb','#ff7eb6',6],['car',46,3.06,5.5,'neb','#ff9f40',6],['eag',40,2.5,4.5,'neb','#b388ff',6],['ringn',52,2.34,3,'ring','#6ee7c8',5],['crab',92,2.92,3.4,'rem','#ffb347',5],['ple',80,3.1,4,'ocl','#7da2ff',6],['sir',62,3.12,2,'star','#dff1ff',4],['bet',88,2.44,2.4,'star','#ff7a45',4],['acen',42,2.76,2,'star','#ffe9a8',4],['pol',76,2.36,2,'star','#fff3c9',4],['trap',54,3.14,3,'trap','#ff5a4a',5],['cyg',38,3,2.6,'bh','#9ae6ff',5]];
+function mwBack(t,S){
+  // lingkaran jarak seperti peta: tiap lingkaran 12.500 tahun cahaya dari pusat
+  if(Z<5){x.lineWidth=1/S;x.strokeStyle='rgba(160,200,255,.2)';x.setLineDash([4/S,6/S]);[25,50,75,100].forEach((r,i)=>{x.beginPath();x.ellipse(0,0,r,r*.55,0,0,6.283);x.stroke();labels.push({t:U.ly[i],x:r*.72,y:-r*.55*.72-16/S,arm:1})});x.setLineDash([])}
+  {const b=bounce('fermi',t);for(const d of[-1,1]){glow(0,d*58,46*b,'rgba(200,120,255,.16)');x.strokeStyle='rgba(220,160,255,.3)';x.lineWidth=1.2/S;x.setLineDash([3/S,5/S]);x.beginPath();x.ellipse(0,d*60,34*b,46*b,0,0,6.283);x.stroke();x.setLineDash([])}body('fermi',0,-82,14,S,1)}
+  MWH.forEach(q=>poi(q[0],q[1]+Math.sin(t*.1+q[1])*3,q[2],q[3],q[4],q[5],t,S,q[6]));
+}
+function mwFront(t,S){
+  const g=(r,th)=>[Math.cos(th+rot)*r,Math.sin(th+rot)*r*.55],solBig=SU*S>=70;
+  if(Z<6.5){const p=g(34,.6);body('bar',p[0],p[1],9,S,1);const q=g(14,3.9);poi('rem',q[0],q[1],3,'bh','#c9b3ff',t,S,5)}
+  MWP.forEach(q=>{const p=g(q[1],q[2]);if(solBig&&Math.hypot(p[0]-SP[0],p[1]-SP[1])<21)return;poi(q[0],p[0],p[1],q[3],q[4],q[5],t,S,q[6])});
+  if(Z>.7&&Z<5)[[0,0,.78],[1,1,.6],[2,2,.62]].forEach(a=>{const f=a[2],p=g(100*(.25+.8*f)+9,a[1]*2.094+f*3.3);labels.push({t:U.arms[a[0]],x:p[0],y:p[1],arm:1})});
+  if(Z>.7&&!solBig){const p=g(66,2.74);labels.push({t:U.orion,x:p[0],y:p[1]+Math.max(SU*.6,16/S)+14/S,arm:1})}
+}
 function solar(t,dt,S){
   const sx=SP[0],sy=SP[1],px=SU*S; // px = jari-jari Tata Surya di layar
   if(px<70){ // dari jauh: titik berkilau + cincin penanda
     glow(sx,sy,9+2*Math.sin(t*3),'rgba(255,220,120,.9)');
     x.save();x.translate(sx,sy);x.rotate(t);x.setLineDash([7/S,7/S]);x.strokeStyle='#fff';x.lineWidth=2.4/S;x.beginPath();x.arc(0,0,Math.max(SU*.6,16/S),0,6.283);x.stroke();x.restore();x.setLineDash([]);
-    hits.push({k:'sol',x:sx,y:sy,r:Math.max(SU*.6,16/S)});labels.push({t:'Tata Surya',x:sx,y:sy-Math.max(SU*.6,16/S)-28/S,k:'sol'});
+    hits.push({k:'sol',x:sx,y:sy,r:Math.max(SU*.6,16/S)});labels.push({t:U.sol,x:sx,y:sy-Math.max(SU*.6,16/S)-28/S,k:'sol'});
     PLN.forEach(p=>ang[p.k]+=dt*.5*p.sp);return;
   }
   x.setLineDash([5/S,6/S]);x.strokeStyle='rgba(160,200,255,.45)';x.lineWidth=1.3/S;
@@ -235,8 +525,9 @@ function frame(ms){
   if(follow=='sol'){Ct.x=SP[0];Ct.y=SP[1]}
   const e=Math.min(1,dt*6);Z+=(Zt-Z)*e;C.x+=(Ct.x-C.x)*e;C.y+=(Ct.y-C.y)*e;
   const S=Z*B;hits=[];labels=[];
-  nav.textContent=Z>4?'Ke Galaksi':'Ke Tata Surya';
+  nav.textContent=Z>4||nearAnd()||nearClu()?U.toMW:U.toSol;
   x.clearRect(0,0,W,H);x.drawImage(bg,0,0);
+  {const ox=(t*10)%W,oy=(t*10)%H;for(const dx of[0,W])for(const dy of[0,-H])x.drawImage(hz,dx-ox,dy+oy)}
   LWS=1;PM=null;
   x.fillStyle='#fff';for(let i=0;i<70;i++){x.globalAlpha=.75*(.3+.7*Math.abs(Math.sin(t*1.3+i*2.1)));x.beginPath();x.arc(h(i*1.3)*W,h(i*7.1)*H,.8+h(i*3.7)*1.8,0,6.283);x.fill()}x.globalAlpha=1;
   // bintang latar bergeser lebih pelan dari benda di depan (paralaks)
@@ -249,16 +540,12 @@ function frame(ms){
   LWS=Math.pow(Z,.12)/S;PM=new DOMMatrix([1/S,0,0,1/S,0,0]);
   // nebula hiasan
   [['rgba(140,90,255,.22)',-150,-90,220],['rgba(80,170,255,.18)',30,160,180]].forEach((n,i)=>glow(n[1]+25*Math.sin(t*.15+i),n[2]+20*Math.cos(t*.12+i*2),n[3],n[0]));
-  // Andromeda, tetangga jauh
-  {const k=bounce('and',t);x.save();x.translate(-430,-340);x.rotate(.5+t*.02);x.scale(k,k*.5);glow(0,0,90,'rgba(190,160,255,.75)');
-   x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=5;x.lineCap='round';for(let a=0;a<2;a++){x.beginPath();for(let f=0;f<=1.001;f+=.1){const rr=90*(.15+.75*f),th=a*3.1416+f*3.2;f?x.lineTo(Math.cos(th)*rr,Math.sin(th)*rr):x.moveTo(Math.cos(th)*rr,Math.sin(th)*rr)}x.stroke()}
-   glow(0,0,26,'rgba(255,240,210,.95)');x.restore();body('and',-430,-340,60,S,1)}
+  andromeda(t,S);
   // nebula tempat bintang lahir
   {const k=bounce('neb',t),nx=185,ny=-165;glow(nx-20,ny,70*k,'rgba(255,110,180,.5)');glow(nx+30,ny+15,60*k,'rgba(255,170,90,.4)');glow(nx,ny-25,50*k,'rgba(140,120,255,.45)');
    for(let i=0;i<6;i++)draw(j=>starPts(nx+(h(i*3)-.5)*90,ny+(h(i*5)-.5)*70,(4+h(i)*4)*(1+.3*Math.sin(t*3+i)),500+i,j),'#ffffff',1.4,1);body('neb',nx,ny,48,S,1)}
-  // gugus bintang
-  {const k=bounce('clu',t),ux=-200,uy=150;glow(ux,uy,60,'rgba(120,190,255,.3)');
-   for(let i=0;i<16;i++){const a=h(i*2.1)*6.283+t*.1,r=Math.pow(h(i*4.7),.7)*42*k;draw(j=>starPts(ux+Math.cos(a)*r,uy+Math.sin(a)*r,(3+h(i*1.3)*5)*(1+.25*Math.sin(t*4+i)),520+i,j),['#9ae6ff','#ffffff','#ffd95a'][i%3],1.4,1)}body('clu',ux,uy,44,S,1)}
+  cluster(t,S);
+  mwBack(t,S);
   // sinar inti + cahaya galaksi
   for(let i=0;i<10;i++){const a=i/10*6.283+t*.12;x.fillStyle='rgba(255,220,160,.07)';x.beginPath();x.moveTo(0,0);x.arc(0,0,150+15*Math.sin(t*2+i),a,a+.2);x.closePath();x.fill()}
   glow(0,0,140,'rgba(255,214,250,'+(.5+.15*Math.sin(t*1.7))+')');
@@ -266,6 +553,7 @@ function frame(ms){
   // saat masuk ke Tata Surya, gumpalan lengan mengecil supaya tidak menutupi planet
   const ak=cl((6.5-Z)/2.5);
   x.save();x.scale(1,.55);x.rotate(rot);
+  if(ak>0){x.save();x.rotate(.6);draw(j=>blob(0,0,48*ak,15*ak,98,j),'#ffe2a8',1.8);x.restore()}
   if(ak>0)for(let a=0;a<3;a++)for(let i=0;i<13;i++){
     const f=(i+1)/13,r=100*(.25+.8*f),th=a*2.094+f*3.3,s=ak*100*(.09-.04*f)*(1+.14*Math.sin(t*2.4+i*.7+a*2)),bx=Math.cos(th)*r,by=Math.sin(th)*r;
     draw(j=>blob(bx,by,s,s,a*20+i,j),armCols[(a+i)%4],1.8);
@@ -274,11 +562,15 @@ function frame(ms){
   x.restore();
   // inti galaksi
   {const k=bounce('core',t);x.save();x.rotate(Math.sin(t*.6)*.08);x.scale(k,k);draw(j=>blob(0,0,30,27,99,j),SUN,3);face(0,0,30);x.restore();body('core',0,0,30,S,1)}
+  mwFront(t,S);
   solar(t,dt,S);
-  // komet melintas
-  {const s=(t%6)/2.2;if(s<1){const kx=260-520*s,ky=-230+210*s,k=bounce('com',t);x.lineCap='round';
-    ['#ff9ecb','#9ae6ff','#ffd95a'].forEach((col,i)=>{x.strokeStyle=col;x.globalAlpha=.7;x.lineWidth=4*LWS*1.4;x.beginPath();x.moveTo(kx+12+i*4,ky-5-i*2);x.lineTo(kx+70+i*5,ky-30+i*4);x.stroke()});x.globalAlpha=1;
-    draw(j=>starPts(kx,ky,9*k,200,j),'#ffd95a',2.4,1);body('com',kx,ky,14,S,0)}}
+  // meteor jatuh cepat
+  {const s=(t%5)/1.1;if(s<1){const mx=310-600*s,my=-330+560*s;meteor(mx,my,13*bounce('met',t));body('met',mx,my,17,S,0)}}
+  // tiga asteroid melayang pelan berdampingan: besar, sedang, kecil
+  {const a=t*.03,ax=Math.cos(a)*290,ay=Math.sin(a)*205,k=bounce('ast',t);
+   [[-36,8,20,0],[2,-10,12,2],[34,12,7,4]].forEach((q,i)=>{const px=ax+q[0],py=ay+q[1]+Math.sin(t*.7+q[3])*5;asteroid(px,py,q[2]*k,t*.15*(i%2?-1:1)+q[3],600+i*10);body('ast',px,py,q[2],S,i==0)})}
+  // alien di piring terbang berkeliling; melesat kalau disentuh
+  {const dg=drag&&drag.on;if(!dg)ufoPh+=dt*.12*boost('ufo',t);const b=ufoBase(),ux=dg?drag.x:b[0]+uOff.x,uy=(dg?drag.y:b[1]+uOff.y)+Math.sin(t*2.2)*5;ufo(ux,uy,24*bounce('ufo',t)*(dg?1.15:1),t);body('ufo',ux,uy-8,26,S,1)}
   // lingkaran penanda benda terpilih
   if(sel){const q=hits.find(v=>v.k==sel.k);if(q){x.save();x.translate(q.x,q.y);x.rotate(t*1.2);x.setLineDash([7/S,8/S]);x.strokeStyle='#fff';x.lineWidth=2.4/S;x.beginPath();x.arc(0,0,q.r*1.35+6/S,0,6.283);x.stroke();x.restore();x.setLineDash([])}}
   // bintang hasil sentuhan dan percikan dari benda yang disentuh
@@ -291,20 +583,21 @@ function frame(ms){
   x.restore();LWS=1;PM=null;
   // ===== layar =====
   x.textAlign='center';x.textBaseline='top';x.lineJoin='round';x.font='bold '+Math.min(15,W*.04)+'px '+FONT;
-  labels.forEach(l=>{const lx=(l.x-C.x)*S+vx,ly=(l.y-C.y)*S+vy+5;if(lx<-60||lx>W+60||ly<150||ly>H-10)return;x.lineWidth=3.5;x.strokeStyle='rgba(10,15,46,.85)';x.strokeText(l.t,lx,ly);x.fillStyle=found.has(l.k)?'#ffd95a':'#e8eeff';x.fillText(l.t,lx,ly)});
+  const used=[];labels.sort((a,b)=>(a.arm?1:0)-(b.arm?1:0)).forEach(l=>{const lx=(l.x-C.x)*S+vx,ly=(l.y-C.y)*S+vy+5;if(lx<-60||lx>W+60||ly<150||ly>H-10)return;const tw=x.measureText(l.t).width/2+3;if(used.some(u=>Math.abs(u[0]-lx)<u[2]+tw&&Math.abs(u[1]-ly)<15))return;used.push([lx,ly,tw]);x.lineWidth=3.5;x.strokeStyle='rgba(10,15,46,.85)';x.strokeText(l.t,lx,ly);x.fillStyle=l.arm?'#8fa6e0':found.has(l.k)?'#ffd95a':'#e8eeff';x.fillText(l.t,lx,ly)});
   // judul
   const ty=Math.max(40,H*.075),fs=Math.min(W*.1,52);
   x.save();x.translate(W/2,ty);x.rotate(Math.sin(t)*.015);
   x.font='bold '+fs+'px '+FONT;x.textAlign='center';x.textBaseline='middle';
-  x.lineWidth=5;x.strokeStyle=BLUE;x.lineJoin='round';x.strokeText('Galaksi Ajaib',0,0);x.fillStyle='#ffb347';x.fillText('Galaksi Ajaib',0,0);
+  x.lineWidth=5;x.strokeStyle=BLUE;x.lineJoin='round';const ttl=nearAnd()?'Andromeda':nearClu()?U.clu:'The Milky Way';x.strokeText(ttl,0,0);x.fillStyle=nearAnd()?'#c9a0ff':nearClu()?'#9ae6ff':'#ffb347';x.fillText(ttl,0,0);
   x.restore();
-  x.font='bold '+Math.min(18,W*.05)+'px '+FONT;x.textAlign='center';x.textBaseline='middle';x.fillStyle='#ffd95a';
-  x.fillText('★ Ditemukan '+found.size+' dari '+KEYS.length,W/2,ty+fs*.85);
-  nav.style.top=(ty+fs*.85+18)+'px';
+  x.font='bold '+Math.min(14,W*.04)+'px '+FONT;x.textAlign='center';x.textBaseline='middle';x.fillStyle='#ffd95a';
+  x.fillText(U.found(found.size,KEYS.length),W/2,ty+fs*.85);
+  bar.style.top=(ty+fs*.85+18)+'px';
+  if(!sel&&Z<3&&!nearAnd()&&!nearClu()){const L=50*S,bx=18,by=H-58;x.strokeStyle='#8fa6e0';x.lineWidth=1.5;x.beginPath();x.moveTo(bx,by-5);x.lineTo(bx,by);x.lineTo(bx+L,by);x.lineTo(bx+L,by-5);x.stroke();x.font=Math.min(13,W*.036)+'px '+FONT;x.textAlign='left';x.textBaseline='bottom';x.fillStyle='#8fa6e0';x.fillText(U.scale,bx,by-7);x.textAlign='center';x.textBaseline='middle'}
   card(t);
   if(!sel){
     x.font=Math.min(18,W*.045)+'px '+FONT;x.fillStyle='#c9d6ff';
-    x.fillText(doneAt?'Hebat! Semua benda langit sudah kamu temukan':'Sentuh semuanya! Geser = jalan-jalan, cubit/scroll = zoom',W/2,H-24);
+    x.fillText(doneAt?U.done:U.hint,W/2,H-24);
   }
   requestAnimationFrame(frame);
 }
