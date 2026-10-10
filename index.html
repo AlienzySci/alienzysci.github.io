@@ -14,17 +14,26 @@ body{margin:0;background:var(--sky);color:var(--ink);font-family:var(--hand);ove
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 #bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 118px);display:flex;gap:8px}
 #bar button{border:2.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 16px;font:bold 17px var(--hand);cursor:pointer;white-space:nowrap}
-#bar button:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
+#bar{max-width:96vw;flex-wrap:wrap;justify-content:center}
+#flt{position:fixed;left:50%;transform:translateX(-50%);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:96vw}
+#flt[hidden]{display:none}
+#flt button{border:2px solid var(--ink);background:rgba(16,22,56,.82);color:#e8eeff;border-radius:999px;padding:4px 12px;font:bold 15px var(--hand);cursor:pointer;white-space:nowrap}
+#flt button[aria-pressed="true"]{background:#ffd95a;color:var(--ink)}
+#flt button:focus-visible,#bar button:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
 </style>
 </head>
 <body>
 <canvas id="c" aria-label="Galaksi Ajaib: sentuh benda langit untuk melihat faktanya, geser untuk berpindah, cubit atau scroll untuk zoom"></canvas>
-<div id="bar"><button id="nav">Ke Tata Surya</button><button id="lang">English</button></div>
+<div id="bar"><button id="nav">Ke Tata Surya</button><button id="lang">English</button><button id="exo">Eksoplanet</button><button id="mus">♪</button></div>
+<div id="flt" hidden><button data-f="all">Semua</button><button data-f="g">Raksasa Gas</button><button data-f="n">Mirip Neptunus</button><button data-f="s">Bumi Super</button><button data-f="t">Berbatu</button></div>
 <script>
-const c=document.getElementById('c'),x=c.getContext('2d'),nav=document.getElementById('nav'),bar=document.getElementById('bar'),lgb=document.getElementById('lang');
+const c=document.getElementById('c'),x=c.getContext('2d'),nav=document.getElementById('nav'),bar=document.getElementById('bar'),lgb=document.getElementById('lang'),mb=document.getElementById('mus'),xb=document.getElementById('exo'),fl=document.getElementById('flt');
+let FT='all',exoOpen=false;
+let MUS=true;try{MUS=localStorage.getItem('ga-mus')!='0'}catch(e){}
 const BLUE='#1747c9',SUN='#ffd23f',FONT='"Patrick Hand","Comic Sans MS","Chalkboard SE",cursive';
+const GUIDE=/*GUIDE*/true;
 // Dunia: pusat galaksi di (0,0), jari-jari galaksi 100 satuan. Layar = (dunia - C) * Z * B + (vx, vy)
-let W,H,B,vx,vy,bg,hz,F=0,LWS=1,PM=null,ufoPh=0,angA=0;
+let W,H,B,vx,vy,bg,hz,F=0,LWS=1,PM=null,ufoPh=0,angA=0,gPh=0;
 let Z=1.3,Zt=1.3,follow=null;const C={x:0,y:0},Ct={x:0,y:0};
 const h=n=>{const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s)};
 const cl=v=>Math.min(1,Math.max(0,v));
@@ -66,13 +75,19 @@ function draw(fn,col,lw=2.4,sh){
   for(let j=1;j<=2;j++){x.beginPath();f(fn(j));x.lineWidth=lw*LWS*(j==1?1:.55);x.globalAlpha=j==1?.95:.5;x.stroke()}
   x.globalAlpha=1;
 }
-function face(cx,cy,r){
-  x.fillStyle='rgba(255,105,150,.6)';
-  for(const d of[-1,1]){x.beginPath();x.arc(cx+d*r*.5,cy+r*.2,r*.13,0,6.283);x.fill()}
-  x.fillStyle='#22307f';
-  for(const d of[-1,1]){x.beginPath();x.arc(cx+d*r*.3,cy-r*.12,r*.09,0,6.283);x.fill()}
+// wajah benda langit; k = kunci benda: sesaat setelah disentuh ia kaget (mata membesar, mulut O), lalu tertawa senang
+function face(cx,cy,r,k){
+  const a=k?lastT-(bump[k]||-9):9,wow=a<.7,joy=!wow&&a<2.4;
+  x.fillStyle='rgba(255,105,150,'+(joy?.9:.6)+')';
+  for(const d of[-1,1]){x.beginPath();x.arc(cx+d*r*.5,cy+r*.2,r*(joy?.16:.13),0,6.283);x.fill()}
   x.strokeStyle=BLUE;x.lineWidth=2*LWS;x.lineCap='round';
-  x.beginPath();x.arc(cx,cy+r*.02,r*.28,.25,2.9);x.stroke();
+  for(const d of[-1,1]){const ex=cx+d*r*.3,ey=cy-r*.12;
+    if(joy){x.beginPath();x.arc(ex,ey+r*.05,r*.11,3.5,5.92);x.stroke()}
+    else{x.fillStyle='#22307f';x.beginPath();x.arc(ex,ey,r*(wow?.15:.09),0,6.283);x.fill();if(wow){x.fillStyle='#fff';x.beginPath();x.arc(ex-r*.04,ey-r*.05,r*.05,0,6.283);x.fill()}}}
+  x.beginPath();
+  if(wow){x.ellipse(cx,cy+r*.3,r*.1,r*.14,0,0,6.283);x.fillStyle='#7a1022';x.fill();x.stroke()}
+  else if(joy){x.arc(cx,cy+r*.12,r*.3,.1,3.04);x.closePath();x.fillStyle='#c0392b';x.fill();x.stroke()}
+  else{x.arc(cx,cy+r*.02,r*.28,.25,2.9);x.stroke()}
 }
 function glow(cx,cy,r,col){const g=x.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,6.283);x.fill()}
 function wrap(s,w){const out=[];let l='';for(const wd of s.split(' ')){const n=l?l+' '+wd:wd;if(l&&x.measureText(n).width>w){out.push(l);l=wd}else l=n}if(l)out.push(l);return out}
@@ -148,10 +163,30 @@ const INFO={
   nep:{n:'Neptunus',col:'#4b63e0',f:'Planet terjauh. Anginnya paling kencang di Tata Surya, lebih dari 2.000 km per jam.',note:587},
   plu:{n:'Pluto',col:'#a58a6d',f:'Planet kerdil di tepi Tata Surya. Di permukaannya ada dataran es berbentuk hati.',note:659}
 };
+// Eksoplanet: jenis tiap planet mengikuti katalog NASA Eyes on Exoplanets
+Object.assign(INFO,{
+  peg51:{n:'51 Pegasi b',col:'#e08a1e',f:'Raksasa gas. Planet pertama yang ditemukan mengelilingi bintang mirip Matahari, tahun 1995. Satu tahunnya cuma 4 hari! Jaraknya sekitar 50 tahun cahaya.',note:262},
+  w12:{n:'WASP-12 b',col:'#e08a1e',f:'Raksasa gas berbentuk telur. Ia terlalu dekat dengan bintangnya, jadi tertarik lonjong dan pelan-pelan dimakan. Jaraknya sekitar 1.400 tahun cahaya.',note:233},
+  hd189:{n:'HD 189733 b',col:'#e08a1e',f:'Raksasa gas berwarna biru. Di sana hujannya kaca, dan anginnya bertiup sampai 8.700 km per jam. Jaraknya 64 tahun cahaya.',note:294},
+  k16:{n:'Kepler-16 b',col:'#e08a1e',f:'Raksasa gas yang punya dua matahari. Kalau bisa berdiri di sana, kamu punya dua bayangan! Jaraknya sekitar 245 tahun cahaya.',note:330},
+  gj436:{n:'GJ 436 b',col:'#3d7be0',f:'Planet mirip Neptunus yang sangat dekat dengan bintangnya. Gasnya tertiup lepas dan membentuk ekor panjang seperti komet. Jaraknya 32 tahun cahaya.',note:392},
+  hat11:{n:'HAT-P-11 b',col:'#3d7be0',f:'Planet mirip Neptunus. Di atmosfernya ditemukan uap air, yang pertama untuk planet seukuran ini. Jaraknya 123 tahun cahaya.',note:440},
+  gj1214:{n:'GJ 1214 b',col:'#3d7be0',f:'Planet mirip Neptunus yang tertutup kabut tebal. Ilmuwan menduga ia dunia beruap yang kaya air. Jaraknya 48 tahun cahaya.',note:466},
+  cnc55:{n:'55 Cancri e',col:'#2fae6b',f:'Bumi Super yang jadi dunia lava. Ia sangat dekat dengan bintangnya, jadi satu tahunnya kurang dari 18 jam. Jaraknya 41 tahun cahaya.',note:523},
+  lhs1140:{n:'LHS 1140 b',col:'#2fae6b',f:'Bumi Super di zona layak huni. Ia mungkin tertutup es dengan lautan bundar yang menghadap bintangnya, seperti bola mata. Jaraknya 49 tahun cahaya.',note:554},
+  k452:{n:'Kepler-452 b',col:'#2fae6b',f:'Bumi Super yang dijuluki sepupu Bumi. Bintangnya mirip Matahari dan satu tahunnya 385 hari. Jaraknya sekitar 1.800 tahun cahaya.',note:587},
+  prox:{n:'Proxima Centauri b',s:'Proxima b',col:'#2fae6b',f:'Eksoplanet terdekat dari kita, hanya 4,2 tahun cahaya. NASA menggolongkannya sebagai Bumi Super yang mungkin berbatu.',note:622},
+  trape:{n:'TRAPPIST-1 e',col:'#a5714d',f:'Planet berbatu seukuran Bumi di zona layak huni bintangnya. Salah satu tempat favorit ilmuwan untuk mencari air. Jaraknya 40 tahun cahaya.',note:659},
+  trapd:{n:'TRAPPIST-1 d',col:'#a5714d',f:'Planet berbatu yang lebih kecil dari Bumi. Satu tahunnya cuma 4 hari. Jaraknya 40 tahun cahaya.',note:698}
+});
+if(GUIDE)INFO.kid={n:'Si Pemandu',col:'#2fae6b',f:'Pemandu kita! Ia terbang dengan sepatu roket, memakai kacamata pindai dan antena di telinganya.',note:523};
+if(GUIDE)INFO.alin={n:'Alin',col:'#e0409f',f:'Robot bola mungil sahabat si pemandu. Ia selalu melayang di dekat kepalanya dan menunjukkan perasaannya lewat mata layar dan simbol.',note:784};
 const KEYS=Object.keys(INFO),found=new Set(),bump={};
 // ===== Dua bahasa =====
 // ATURAN: setiap benda baru wajib punya entri di INFO (Indonesia) DAN di EN (Inggris), dan setiap teks antarmuka baru masuk ke UI.id dan UI.en.
 const EN={
+  kid:{n:'The Guide',f:'Our guide! He flies on rocket boots and wears a scanner visor and an ear antenna.'},
+  alin:{n:'Alin',f:"A tiny ball robot and our guide's best friend. It always hovers by his head and shows its feelings with its screen eyes and symbols."},
   core:{n:'Sagittarius A*',f:'The supermassive black hole at the center of the Milky Way. It has about 4 million times the mass of the Sun.'},
   sol:{n:'Our Solar System',f:"The Solar System sits in one of the Milky Way's arms, about 26,000 light-years from the center."},
   neb:{n:'Nebula',f:'A nebula is a giant cloud of gas and dust where new stars are born.'},
@@ -221,20 +256,41 @@ const EN={
   nep:{n:'Neptune',f:'The farthest planet. It has the fastest winds in the Solar System, over 2,000 km per hour.'},
   plu:{n:'Pluto',f:'A dwarf planet at the edge of the Solar System. It has a heart-shaped plain of ice on its surface.'}
 };
+Object.assign(EN,{
+  peg51:{n:'51 Pegasi b',f:'A gas giant. The first planet found around a Sun-like star, in 1995. Its year lasts only 4 days! It is about 50 light-years away.'},
+  w12:{n:'WASP-12 b',f:'An egg-shaped gas giant. It is so close to its star that it gets stretched and slowly eaten. It is about 1,400 light-years away.'},
+  hd189:{n:'HD 189733 b',f:'A blue gas giant. It rains glass there, and the winds blow up to 8,700 km per hour. It is 64 light-years away.'},
+  k16:{n:'Kepler-16 b',f:'A gas giant with two suns. If you could stand there, you would have two shadows! It is about 245 light-years away.'},
+  gj436:{n:'GJ 436 b',f:'A Neptune-like planet very close to its star. Its gas is blown away and forms a long tail like a comet. It is 32 light-years away.'},
+  hat11:{n:'HAT-P-11 b',f:'A Neptune-like planet. Water vapor was found in its atmosphere, the first for a planet this size. It is 123 light-years away.'},
+  gj1214:{n:'GJ 1214 b',f:'A Neptune-like planet wrapped in thick haze. Scientists think it is a steamy world rich in water. It is 48 light-years away.'},
+  cnc55:{n:'55 Cancri e',f:'A Super Earth that is a lava world. It is so close to its star that its year lasts less than 18 hours. It is 41 light-years away.'},
+  lhs1140:{n:'LHS 1140 b',f:'A Super Earth in the habitable zone. It may be covered in ice with a round ocean facing its star, like an eyeball. It is 49 light-years away.'},
+  k452:{n:'Kepler-452 b',f:"A Super Earth nicknamed Earth's cousin. Its star is like the Sun and its year lasts 385 days. It is about 1,800 light-years away."},
+  prox:{n:'Proxima Centauri b',s:'Proxima b',f:'The closest exoplanet to us, only 4.2 light-years away. NASA classes it as a Super Earth that may be rocky.'},
+  trape:{n:'TRAPPIST-1 e',f:'A rocky, Earth-sized planet in the habitable zone of its star. A favorite place for scientists to look for water. It is 40 light-years away.'},
+  trapd:{n:'TRAPPIST-1 d',f:'A rocky planet smaller than Earth. Its year lasts only 4 days. It is 40 light-years away.'}
+});
 const UI={
-  id:{clu:'Gugus Bintang',found:(a,b)=>'★ Ditemukan '+a+' dari '+b,toSol:'Ke Tata Surya',toMW:'Ke Bima Sakti',hint:'Sentuh semuanya!',done:'Hebat! Semua benda langit sudah kamu temukan',sol:'Tata Surya',ly:['12.500 tc','25.000 tc','37.500 tc','50.000 tc'],arms:['Lengan Perseus','Lengan Sagittarius','Lengan Scutum-Centaurus'],orion:'Lengan Orion',scale:'25.000 tahun cahaya',other:'English',aria:'Peta galaksi: sentuh benda langit untuk melihat faktanya, geser untuk berpindah, cubit atau scroll untuk zoom'},
-  en:{clu:'Star Cluster',found:(a,b)=>'★ Found '+a+' of '+b,toSol:'To Solar System',toMW:'To Milky Way',hint:'Tap everything!',done:'Great job! You found every object in the sky',sol:'Solar System',ly:['12,500 ly','25,000 ly','37,500 ly','50,000 ly'],arms:['Perseus Arm','Sagittarius Arm','Scutum-Centaurus Arm'],orion:'Orion Arm',scale:'25,000 light-years',other:'Indonesia',aria:'Galaxy map: tap an object to see its fact, drag to move, pinch or scroll to zoom'}
+  id:{exo:'Eksoplanet',ft:{all:'Semua',g:'Raksasa Gas',n:'Mirip Neptunus',s:'Bumi Super',t:'Berbatu'},exoStat:'Bima Sakti: 4.842 tata surya, 6.445 planet terkonfirmasi (NASA)',exoLy:['10 tc','100 tc','1.000 tc'],musOn:'Musik menyala, ketuk untuk mematikan',musOff:'Musik mati, ketuk untuk menyalakan',stamp:'DITEMUKAN',zoom:'Zoom',clu:'Gugus Bintang',found:(a,b)=>'★ Ditemukan '+a+' dari '+b,toSol:'Ke Tata Surya',toMW:'Ke Bima Sakti',hint:'Sentuh semuanya!',done:'Hebat! Semua benda langit sudah kamu temukan',sol:'Tata Surya',ly:['12.500 tc','25.000 tc','37.500 tc','50.000 tc'],arms:['Lengan Perseus','Lengan Sagittarius','Lengan Scutum-Centaurus'],orion:'Lengan Orion',scale:'25.000 tahun cahaya',other:'English',aria:'Peta galaksi: sentuh benda langit untuk melihat faktanya, geser untuk berpindah, cubit atau scroll untuk zoom'},
+  en:{exo:'Exoplanets',ft:{all:'All',g:'Gas Giant',n:'Neptune-like',s:'Super Earth',t:'Terrestrial'},exoStat:'Milky Way: 4,842 solar systems, 6,445 confirmed planets (NASA)',exoLy:['10 ly','100 ly','1,000 ly'],musOn:'Music on, tap to turn off',musOff:'Music off, tap to turn on',stamp:'FOUND',zoom:'Zoom',clu:'Star Cluster',found:(a,b)=>'★ Found '+a+' of '+b,toSol:'To Solar System',toMW:'To Milky Way',hint:'Tap everything!',done:'Great job! You found every object in the sky',sol:'Solar System',ly:['12,500 ly','25,000 ly','37,500 ly','50,000 ly'],arms:['Perseus Arm','Sagittarius Arm','Scutum-Centaurus Arm'],orion:'Orion Arm',scale:'25,000 light-years',other:'Indonesia',aria:'Galaxy map: tap an object to see its fact, drag to move, pinch or scroll to zoom'}
 };
 let LANG='id',U=UI.id;
 KEYS.forEach(k=>INFO[k].id={n:INFO[k].n,s:INFO[k].s,f:INFO[k].f});
 function setLang(l){
   LANG=l=='en'?'en':'id';U=UI[LANG];
   KEYS.forEach(k=>{const s=LANG=='en'&&EN[k]?EN[k]:INFO[k].id;INFO[k].n=s.n;INFO[k].s=s.s;INFO[k].f=s.f});
+  mb.style.opacity=MUS?1:.45;mb.style.textDecoration=MUS?'none':'line-through';mb.setAttribute('aria-label',MUS?U.musOn:U.musOff);mb.title=MUS?U.musOn:U.musOff;
+  xb.textContent=U.exo;xb.setAttribute('aria-pressed',exoOpen);fl.hidden=!exoOpen;[...fl.children].forEach(b=>{b.textContent=U.ft[b.dataset.f];b.setAttribute('aria-pressed',FT==b.dataset.f)});
   lgb.textContent=U.other;lgb.lang=LANG=='en'?'id':'en';document.documentElement.lang=LANG;c.setAttribute('aria-label',U.aria);
   try{localStorage.setItem('ga-lang',LANG)}catch(e){}
 }
 {let l=null;try{l=localStorage.getItem('ga-lang')}catch(e){}setLang(l||((navigator.language||'id').toLowerCase().indexOf('id')==0?'id':'en'))}
 lgb.onclick=()=>{audio();setLang(LANG=='id'?'en':'id');tone(660,.15,'sine',.1)};
+// tombol Eksoplanet: terbang ke lingkungan sekitar Matahari dan buka saringan jenis planet (seperti NASA Eyes on Exoplanets)
+xb.onclick=()=>{audio();exoOpen=!exoOpen;if(exoOpen)fly('exo');else FT='all';setLang(LANG)};
+fl.onclick=e=>{const f=e.target.dataset&&e.target.dataset.f;if(!f)return;audio();FT=f;setLang(LANG);tone(f=='all'?523:660,.15,'triangle',.1);if(Z<1.9||Z>9.5||Math.hypot(C.x-SP[0],C.y-SP[1])>40)fly('exo')};
+mb.onclick=()=>{audio();MUS=!MUS;try{localStorage.setItem('ga-mus',MUS?'1':'0')}catch(e){}setLang(LANG);tone(MUS?784:392,.15,'sine',.1)};
 let hits=[],labels=[],sel=null,doneAt=0;
 // Planet: f = jarak orbit (bagian dari jari-jari Tata Surya), r = ukuran, sp = kecepatan relatif terhadap Bumi
 const SU=20,PLN=[
@@ -245,6 +301,22 @@ const ang={};PLN.forEach((p,i)=>ang[p.k]=i*2.4);
 const armCols=['#ff7eb6','#b388ff','#ffb347','#5fd8ff'];
 const stars=[];for(let i=0;i<34;i++)stars.push({x:h(i*3.3),y:h(i*7.7),r:5+h(i*1.9)*9,col:['#ffd95a','#ff9ecb','#9ae6ff','#c7a6ff'][i%4],ph:h(i)*6});
 const pops=[];
+// Suasana hati Alien7 dan Alin: ekspresi yang sedang tampil dan sampai kapan. react() mengubahnya saat ada sentuhan.
+const mood={ufo:{ex:'normal',until:0},alin:{ex:'normal',until:0}},taps={},syms=[],AL={x:null,y:0,sd:1,em:-9},U7={x:0};
+const SCARY=['core','m31','cyg','sn','sn1885','rem','crab'],SYM={cinta:'heart',kaget:'!!',heran:'?!',bingung:'?',senang:'♪',marah:'angry',tidur:'z'};
+let SELP=null;
+const clamp=v=>Math.max(-1,Math.min(1,v));
+function feel(w,ex,d){const n=performance.now()/1000;mood[w]={ex,until:n+d};if(w=='alin')AL.em=-9}
+// tiga ketukan beruntun pada benda yang sama = diganggu
+function rapid(k,t){const q=taps[k]||(taps[k]=[0,-9]);q[0]=t-q[1]<1.3?q[0]+1:1;q[1]=t;return q[0]>=3}
+function react(k,nw,t){
+  if(k=='ufo'){if(rapid(k,t)){feel('ufo','marah',3);feel('alin','kaget',2.6)}else{feel('ufo','tertawa',2.4);feel('alin','senang',2.4)}}
+  else if(k=='alin'){if(rapid(k,t)){feel('alin','marah',3);feel('ufo','tertawa',2.6)}else{feel('alin','cinta',3.2);feel('ufo','lucu',2.6)}}
+  else if(k=='kid'){feel('alin','senang',2.6);feel('ufo','lucu',2.2)}
+  else if(SCARY.includes(k)){feel('ufo','kaget',1.6);feel('alin','heran',3)}
+  else if(nw){feel('ufo','kaget',.9);feel('alin','kaget',2.6)}
+  else{feel('ufo','lucu',1.2);feel('alin','senang',2.2)}
+}
 
 // Suara: nada pendek lewat WebAudio, aktif setelah sentuhan pertama
 let AC;
@@ -255,12 +327,47 @@ function tone(f,d,type='sine',v=.14,at=0){
   o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(v,n+.015);g.gain.exponentialRampToValueAtTime(.0001,n+d);
   o.connect(g);g.connect(AC.destination);o.start(n);o.stop(n+d+.05);
 }
+// ===== Musik latar: pad + denyut bass 140 BPM + arpeggio. Lapisannya mengikuti kamera: jauh = tenang, mendekat = makin ramai =====
+let mG=null,mNext=0,mStep=0,mLv=0;
+const MCH=[[110,[220,261.63,329.63]],[87.31,[174.61,220,261.63]],[130.81,[196,261.63,329.63]],[98,[196,246.94,293.66]]];
+function mOsc(type,f,at,d,v,f2){const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,at);if(f2)o.frequency.exponentialRampToValueAtTime(f2,at+d*.6);g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.012);g.gain.exponentialRampToValueAtTime(.0001,at+d);o.connect(g);g.connect(mG);o.start(at);o.stop(at+d+.05)}
+function music(){
+  if(!AC||AC.state!='running')return;
+  if(!mG){mG=AC.createGain();mG.gain.value=0;mG.connect(AC.destination);mNext=AC.currentTime+.15}
+  mG.gain.setTargetAtTime(MUS?.6:0,AC.currentTime,.3);
+  if(!MUS)return;
+  if(mNext<AC.currentTime)mNext=AC.currentTime+.05; // tab sempat tertidur
+  const SP=60/140/2;
+  while(mNext<AC.currentTime+.3){
+    const st=mStep%16,ch=MCH[Math.floor(mStep/16)%4],at=mNext;
+    if(st==0){const f=AC.createBiquadFilter(),g=AC.createGain(),L=SP*16;f.type='lowpass';f.frequency.value=mLv?1300:800;g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(1,at+.8);g.gain.setValueAtTime(1,at+L-.4);g.gain.linearRampToValueAtTime(0,at+L+.5);f.connect(g);g.connect(mG);
+      ch[1].forEach(n=>[-6,6].forEach(dt=>{const o=AC.createOscillator(),og=AC.createGain();o.type='sawtooth';o.frequency.value=n;o.detune.value=dt;og.gain.value=.02;o.connect(og);og.connect(f);o.start(at);o.stop(at+L+.6)}))}
+    if(mLv>=1){if(st%4==0)mOsc('sine',120,at,.22,.5,45);if(st%4==0||st==6||st==14)mOsc('sine',ch[0],at,SP*1.7,.2)}
+    if(mLv>=2)mOsc('triangle',ch[1][[0,1,2,1][st%4]]*(st%8>3?4:2),at,.3,.05);
+    else if(st%4==0)mOsc('triangle',ch[1][(st/4)%3]*2,at,.9,.04);
+    mNext+=SP;mStep++}
+}
+// keadaan kamera sinematik dan stempel penemuan
+let flyAt=-9,punchAt=-9,stampAt=-9;const TR={};
+// kisi ruang-waktu yang melengkung ke arah lubang hitam pusat galaksi; makin jelas saat kamera mendekat
+function spaceGrid(S){const al=cl((Z-1.7)/1.5)*cl(1.4-Math.hypot(C.x,C.y)/60)*cl((7-Z)/2);if(al<=0)return;
+  const wp=(px,py)=>{const r=Math.hypot(px,py)||1,k=1-.55/(1+Math.pow(r/26,2));return[px*k,py*k*.55]};
+  x.strokeStyle='rgba(150,180,255,'+(.32*al)+')';x.lineWidth=1.1/S;
+  for(let i=-8;i<=8;i++){x.beginPath();for(let j=-40;j<=40;j++){const p=wp(i*14,j*2.8);j==-40?x.moveTo(p[0],p[1]):x.lineTo(p[0],p[1])}x.stroke();x.beginPath();for(let j=-40;j<=40;j++){const p=wp(j*2.8,i*14);j==-40?x.moveTo(p[0],p[1]):x.lineTo(p[0],p[1])}x.stroke()}}
+// stempel "DITEMUKAN n / total" yang menghantam layar tiap ada benda baru
+function stampDraw(t,ty){const a=t-stampAt;if(a<0||a>2.2)return;const k=a<.18?2.6-1.6*(a/.18):1+.06*Math.exp(-(a-.18)*9)*Math.cos((a-.18)*30),al=a>1.8?(2.2-a)/.4:Math.min(1,a/.08),w=Math.min(230,W*.56),hh=w*.42;
+  if(a>.18&&a<.7){const p=(a-.18)/.52;x.strokeStyle='rgba(255,217,90,'+(1-p)+')';x.lineWidth=3;x.beginPath();x.ellipse(W/2,ty,w*(.6+p*.5),hh*(.7+p*.6),0,0,6.283);x.stroke()}
+  x.save();x.translate(W/2,ty);x.rotate(-.1);x.scale(k,k);x.globalAlpha=al;
+  x.fillStyle='rgba(16,22,56,.88)';x.strokeStyle='#ffd95a';x.lineWidth=4;x.lineJoin='round';x.beginPath();x.rect(-w/2,-hh/2,w,hh);x.fill();x.stroke();x.lineWidth=1.5;x.strokeRect(-w/2+6,-hh/2+6,w-12,hh-12);
+  x.textAlign='center';x.textBaseline='middle';x.fillStyle='#ffd95a';x.font='bold '+hh*.26+'px '+FONT;x.fillText('★ '+U.stamp+' ★',0,-hh*.2);x.font='bold '+hh*.42+'px '+FONT;x.fillStyle='#fff';x.fillText(found.size+' / '+KEYS.length,0,hh*.18);
+  x.restore();x.globalAlpha=1}
 const PENTA=[523,587,659,784,880,1047,1175,1319];
 const now=()=>performance.now()/1000;
 let rot=0,pt=0,lastT=0,SP=[0,0];
 // terbang ke Tata Surya atau kembali ke seluruh galaksi
 function fly(to){
-  if(to=='sol'){follow='sol';Zt=Math.min(W,H*.8)*.44/(SU*B)}else if(to=='and'){follow=null;Ct.x=AX;Ct.y=AY;Zt=Math.min(W,H*.8)*.46/(68*B)}else if(to=='clu'){follow=null;Ct.x=CX;Ct.y=CY;Zt=Math.min(W,H*.8)*.46/(58*B)}else{follow=null;Ct.x=Ct.y=0;Zt=1.3}
+  flyAt=now();
+  if(to=='sol'){follow='sol';Zt=Math.min(W,H*.8)*.44/(SU*B)}else if(to=='exo'){follow='sol';Zt=Math.min(W*.46/56,H*.36/34)/B}else if(to=='and'){follow=null;Ct.x=AX;Ct.y=AY;Zt=Math.min(W,H*.8)*.46/(68*B)}else if(to=='clu'){follow=null;Ct.x=CX;Ct.y=CY;Zt=Math.min(W,H*.8)*.46/(58*B)}else{follow=null;Ct.x=Ct.y=0;Zt=1.3}
   tone(to=='gal'?392:523,.25,'triangle',.1);tone(to=='gal'?262:784,.3,'sine',.1,.1);
 }
 nav.onclick=()=>{audio();fly(Z>4||nearAnd()||nearClu()?'gal':'sol')};
@@ -269,17 +376,19 @@ function tap(wx,wy,sy){
   for(let i=hits.length-1;i>=0;i--){
     const q=hits[i];
     if(Math.hypot(wx-q.x,wy-q.y)<Math.max(q.r,22/S)+8/S){
-      const I=INFO[q.k];sel={k:q.k,t0:t};bump[q.k]=t;
+      const I=INFO[q.k];sel={k:q.k,t0:t};bump[q.k]=t;punchAt=t;
       tone(I.note,.3,'triangle');tone(I.note*1.5,.35,'sine',.12,.09);
       for(let n=0;n<7;n++)pops.push({x:q.x,y:q.y,t0:t,a:n/7*6.283,r:q.r,mini:1});
       if(q.k=='sol')fly('sol');
       if(q.k=='and'&&AR*S<70)fly('and');
       if(q.k=='clu'&&CR*S<70)fly('clu');
-      if(!found.has(q.k)){found.add(q.k);
-        if(found.size==KEYS.length){doneAt=t;[523,659,784,1047,1319].forEach((f,n)=>tone(f,.5,'triangle',.13,.35+n*.11))}}
+      react(q.k,!found.has(q.k),t);
+      if(!found.has(q.k)){found.add(q.k);stampAt=t;tone(92,.3,'sine',.35,.16);
+        if(found.size==KEYS.length){doneAt=t;feel('ufo','tertawa',5);feel('alin','cinta',6);[523,659,784,1047,1319].forEach((f,n)=>tone(f,.5,'triangle',.13,.35+n*.11))}}
       return;
     }
   }
+  feel('ufo','bingung',2);feel('alin','bingung',2.6);
   pops.push({x:wx,y:wy,t0:t});
   tone(PENTA[Math.min(7,Math.max(0,Math.floor((1-sy/H)*8)))],.5,'sine',.12);
 }
@@ -304,11 +413,11 @@ c.addEventListener('pointermove',e=>{
   if(pinch&&pts.size==2){const m=mid(),r=c.getBoundingClientRect();zoomAt(m.x-r.left,m.y-r.top,pinch.z*m.d/pinch.d);return}
   if(!pd)return;
   const dx=e.clientX-pd.lx,dy=e.clientY-pd.ly;pd.lx=e.clientX;pd.ly=e.clientY;pd.mv+=Math.abs(dx)+Math.abs(dy);
-  if(drag){if(pd.mv>12){drag.on=true;const w=toWorld(e);drag.x=w[0]+drag.dx;drag.y=w[1]+drag.dy;c.style.cursor='grabbing'}return}
+  if(drag){if(pd.mv>12){if(!drag.on)feel('alin','heran',3);drag.on=true;const w=toWorld(e);drag.x=w[0]+drag.dx;drag.y=w[1]+drag.dy;c.style.cursor='grabbing'}return}
   if(pd.mv>12){follow=null;const S=Z*B;Ct.x-=dx/S;Ct.y-=dy/S;C.x=Ct.x;C.y=Ct.y;c.style.cursor='grabbing'}
 });
 function up(e){
-  if(drag&&drag.on){const b=ufoBase();uOff.x=drag.x-b[0];uOff.y=drag.y-b[1];bump.ufo=now();tone(523,.2,'triangle',.12);tone(784,.25,'sine',.1,.08);pd=null}
+  if(drag&&drag.on){const b=ufoBase();uOff.x=drag.x-b[0];uOff.y=drag.y-b[1];bump.ufo=now();feel('ufo','kesal',2.6);tone(523,.2,'triangle',.12);tone(784,.25,'sine',.1,.08);pd=null}
   drag=null;
   if(pd&&pd.mv<=12&&pts.size==1&&e.type=='pointerup'){const r=c.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top,S=Z*B;tap((sx-vx)/S+C.x,(sy-vy)/S+C.y,sy)}
   pts.delete(e.pointerId);if(pts.size<2)pinch=null;pd=null;c.style.cursor='grab';
@@ -323,6 +432,8 @@ function card(t){
   const cw=Math.min(W-32,460),pad=16,fs=Math.min(19,W*.048);
   x.font=fs+'px '+FONT;
   const lines=wrap(I.f,cw-pad*2),lh=fs*1.3,ch=pad*2+fs*1.6+lines.length*lh,cy=H-16-ch/2;
+  // garis penunjuk dari benda ke kartu faktanya
+  if(SELP){const S2=Z*B,ox=(SELP[0]-C.x)*S2+vx,oy=(SELP[1]-C.y)*S2+vy,y2=H-16-ch;if(oy<y2-34){x.strokeStyle='rgba(255,255,255,'+(.7*Math.min(1,k))+')';x.lineWidth=1.5;x.setLineDash([3,5]);x.beginPath();x.moveTo(ox,oy);x.lineTo(ox,y2-22);x.lineTo(W/2,y2-22);x.lineTo(W/2,y2);x.stroke();x.setLineDash([]);x.fillStyle='#fff';x.beginPath();x.arc(ox,oy,3,0,6.283);x.fill()}}
   x.save();x.translate(W/2,cy);x.scale(k,k);
   const P=[[-cw/2,-ch/2],[cw/2,-ch/2],[cw/2,ch/2],[-cw/2,ch/2]];
   draw(j=>P.map((p,i)=>[p[0]+(h(i*5+j*3+F)-.5)*5,p[1]+(h(i*7+j*5+F)-.5)*5]),'#ffffff',2.6,1);
@@ -351,24 +462,126 @@ function asteroid(cx,cy,r,rot,sd){
   [[-.3,-.2,.26],[.3,.15,.2],[0,.4,.15],[.25,-.4,.13]].forEach(q=>{x.fillStyle='rgba(70,70,90,.5)';x.beginPath();x.ellipse(q[0]*r,q[1]*r,q[2]*r,q[2]*r*.75,0,0,6.283);x.fill();x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=1.2*LWS;x.beginPath();x.arc(q[0]*r,q[1]*r,q[2]*r,.3,2.2);x.stroke()});
   x.restore();
 }
-// alien hijau berbentuk buah pir di dalam piring terbang ungu
-function ufo(cx,cy,s,t){
-  x.save();x.translate(cx,cy);x.rotate(Math.sin(t*1.7)*.08);
+// anggota badan lonjong dari a ke b, setengah lebar w
+function limb(a,b,w,col,lw){const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,ux=dx/L*w,uy=dy/L*w;
+  draw(()=>[[a[0]-uy-ux,a[1]+ux-uy],[b[0]-uy+ux,b[1]+ux+uy],[b[0]+uy+ux,b[1]-ux+uy],[a[0]+uy-ux,a[1]-ux-uy]],col,lw||1.6)}
+function heart(r){x.beginPath();x.moveTo(0,r*.9);x.bezierCurveTo(-r*1.5,-r*.2,-r*.7,-r*1.2,0,-r*.4);x.bezierCurveTo(r*.7,-r*1.2,r*1.5,-r*.2,0,r*.9);x.closePath()}
+// Alien7: alien hijau berbentuk buah pir di piring terbang ungu, sama dengan yang tampil di video LHS 1140 b.
+// o = {tilt, kick, ex, lx, ly, point}: ex = ekspresi, lx/ly = arah pandang (-1..1), point = [x,y] benda yang ditunjuk
+function ufo(cx,cy,s,t,o){
+  const ex=o.ex||'normal',lx=o.lx||0,ly=o.ly||0,kick=o.kick||0,wob=Math.sin(t*6.5)*.5+Math.sin(t*2.3)*.3,K='#16110f';
+  x.save();x.translate(cx,cy);x.rotate((o.tilt||0)+Math.sin(t*1.7)*.05);
   glow(0,s*.55,s*1.3,'rgba(190,120,255,.35)');
+  if(kick>0){limb([-s*.5,s*.25],[-s*(.9+.5*kick),s*.3],s*.07,'#8fd14f');draw(j=>blob(-s*(1+.5*kick),s*.3,s*.16,s*.11,629,j),'#7a4a9e',1.6)}
   for(const d of[-1,1])draw(j=>blob(d*s*.35,s*.5,s*.1,s*.08,625+d,j),'#7a4a9e',1.6);
   draw(j=>blob(0,s*.14,s,s*.4,620,j),'#b06fd8',2.6);
   x.fillStyle='#3a1f52';x.beginPath();x.ellipse(0,0,s*.6,s*.2,0,0,6.283);x.fill();
-  x.strokeStyle=BLUE;x.lineWidth=2*LWS;x.lineCap='round';x.beginPath();x.moveTo(s*.04,-s*.95);x.quadraticCurveTo(s*.1,-s*1.2,-s*.04,-s*1.36);x.stroke();
-  draw(j=>blob(-s*.04,-s*1.4,s*.09,s*.09,622,j),'#8fd14f',1.6);
+  // badan condong mengikuti arah pandang; melompat kecil saat tertawa
+  x.save();x.translate(lx*s*.07,(ex=='tertawa'?-Math.abs(Math.sin(t*13))*s*.06:0)+ly*s*.03);x.rotate(lx*.13);
+  const ax=-s*.04+wob*s*.12+lx*s*.08,ay=-s*1.36;
+  x.strokeStyle=BLUE;x.lineWidth=2*LWS;x.lineCap='round';x.beginPath();x.moveTo(s*.04,-s*.95);x.quadraticCurveTo(s*.1-wob*s*.06,-s*1.2,ax,ay);x.stroke();
+  draw(j=>blob(ax,ay-s*.04,s*.09,s*.09,622,j),ex=='marah'?'#ff6b5b':'#8fd14f',1.6);
   draw(j=>{const p=[];for(let i=0;i<14;i++){const a=i/14*6.283,k=jit(621,i,j,.03);p.push([Math.cos(a)*s*(.4+.1*Math.sin(a))*k,-s*.42+Math.sin(a)*s*.6*k])}return p},'#8fd14f',2.6);
-  x.fillStyle='rgba(255,130,150,.55)';for(const d of[-1,1]){x.beginPath();x.ellipse(d*s*.31,-s*.3,s*.08,s*.05,0,0,6.283);x.fill()}
-  for(const d of[-1,1]){x.fillStyle='#16110f';x.beginPath();x.arc(d*s*.17,-s*.45,s*.13,0,6.283);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(d*s*.17-s*.04,-s*.5,s*.045,0,6.283);x.fill()}
-  x.strokeStyle='#16110f';x.lineWidth=1.6*LWS;x.beginPath();x.arc(-s*.04,-s*.28,s*.04,.2,2.94);x.arc(s*.04,-s*.28,s*.04,.2,2.94);x.stroke();
+  x.fillStyle='rgba(255,130,150,'+(ex=='lucu'||ex=='tertawa'?.85:ex=='marah'?.9:.55)+')';for(const d of[-1,1]){x.beginPath();x.ellipse(d*s*.31,-s*.3,s*(ex=='lucu'?.1:.08),s*.05,0,0,6.283);x.fill()}
+  const er=s*.13*(ex=='kaget'?1.22:1),eox=lx*s*.04,eoy=ex=='melamun'?-s*.03:ly*s*.035,blink=(t%3.4)<.13&&ex!='kaget';
+  for(const d of[-1,1]){
+    const e0=d*s*.17+eox,e1=-s*.45+eoy,r=er*(ex=='bingung'&&d<0?.72:1);
+    if(ex=='tertawa'){x.strokeStyle=K;x.lineWidth=s*.035;x.lineCap='round';x.beginPath();x.arc(e0,e1+r*.4,r*.8,3.5,5.92);x.stroke()}
+    else if(blink){x.strokeStyle=K;x.lineWidth=s*.03;x.lineCap='round';x.beginPath();x.moveTo(e0-r*.8,e1);x.lineTo(e0+r*.8,e1);x.stroke()}
+    else{x.fillStyle=K;x.beginPath();x.arc(e0,e1,r,0,6.283);x.fill();
+      x.fillStyle='#fff';x.beginPath();x.arc(e0-r*.3+lx*r*.25,e1-r*.38+ly*r*.25,r*(ex=='lucu'?.42:.34),0,6.283);x.fill();
+      if(ex=='lucu'){x.beginPath();x.arc(e0+r*.35,e1+r*.3,r*.18,0,6.283);x.fill()}
+      // kelopak mata setengah tertutup
+      if(ex=='kesal'||ex=='melamun'){const q=ex=='kesal'?1.05:.7;x.save();x.beginPath();x.arc(e0,e1,r*1.06,0,6.283);x.clip();x.fillStyle='#a6dc6e';x.fillRect(e0-r*1.1,e1-r*1.1,r*2.2,r*q);x.strokeStyle=K;x.lineWidth=s*.022;x.beginPath();x.moveTo(e0-r*1.1,e1-r*1.1+r*q);x.lineTo(e0+r*1.1,e1-r*1.1+r*q);x.stroke();x.restore()}}
+    x.strokeStyle=K;x.lineWidth=s*.035;x.lineCap='round';
+    if(ex=='marah'||kick>0){x.beginPath();x.moveTo(e0+d*r*1.05,e1-r*1.7);x.lineTo(e0-d*r*.8,e1-r*1.05);x.stroke()}
+    if(ex=='bingung'&&d>0){x.beginPath();x.moveTo(e0-r,e1-r*1.5);x.lineTo(e0+r,e1-r*1.9);x.stroke()}
+  }
+  const mx=lx*s*.03,my=-s*.26;x.strokeStyle=K;x.lineWidth=s*.028;x.lineCap='round';x.beginPath();
+  if(ex=='tertawa'){x.arc(mx,my-s*.02,s*.1,0,3.1416);x.closePath();x.fillStyle='#c0392b';x.fill();x.stroke()}
+  else if(ex=='marah'||kick>0){x.arc(mx,my+s*.09,s*.085,3.6,5.82);x.stroke()}
+  else if(ex=='kesal'){x.moveTo(mx-s*.07,my+s*.02);x.lineTo(mx+s*.07,my-s*.01);x.stroke()}
+  else if(ex=='melamun'){x.arc(mx,my,s*.03,0,6.283);x.stroke()}
+  else if(ex=='bingung'){x.moveTo(mx-s*.08,my);x.quadraticCurveTo(mx-s*.04,my-s*.04,mx,my);x.quadraticCurveTo(mx+s*.04,my+s*.04,mx+s*.08,my);x.stroke()}
+  else if(ex=='kaget'){x.ellipse(mx,my+s*.01,s*.045,s*.065,0,0,6.283);x.fillStyle=K;x.fill()}
+  else{x.arc(mx-s*.04,my-s*.02,s*.04,.2,2.94);x.arc(mx+s*.04,my-s*.02,s*.04,.2,2.94);x.stroke()}
+  if(o.point){ // lengan menunjuk, dengan panah kecil seperti kursor di ujungnya
+    const an=Math.atan2(o.point[1]-cy,o.point[0]-cx)-lx*.13-(o.tilt||0),sx=Math.cos(an)>=0?s*.3:-s*.3,hx=sx+Math.cos(an)*s*.6,hy=-s*.2+Math.sin(an)*s*.6;
+    limb([sx,-s*.2],[hx,hy],s*.055,'#8fd14f');
+    const tx=hx+Math.cos(an)*s*.34,ty=hy+Math.sin(an)*s*.34;
+    draw(()=>[[tx,ty],[hx+Math.cos(an+2.2)*s*.2,hy+Math.sin(an+2.2)*s*.2],[hx+Math.cos(an)*s*.06,hy+Math.sin(an)*s*.06],[hx+Math.cos(an-2.2)*s*.2,hy+Math.sin(an-2.2)*s*.2]],'#ffffff',1.6,1);
+  }else draw(j=>blob(s*.36,-s*.02,s*.09,s*.07,623,j),'#8fd14f',1.6);
+  x.restore();
   x.beginPath();x.ellipse(0,s*.02,s*.6,s*.2,0,.05,3.09);x.strokeStyle='#b06fd8';x.lineWidth=s*.15;x.lineCap='butt';x.stroke();
   x.strokeStyle=BLUE;x.lineWidth=1.6*LWS;x.beginPath();x.ellipse(0,s*.03,s*.68,s*.26,0,.05,3.09);x.stroke();
-  draw(j=>blob(s*.36,-s*.02,s*.09,s*.07,623,j),'#8fd14f',1.6);
-  for(let i=0;i<5;i++){const a=.42+i*.575,lx=Math.cos(a)*s*.84,ly=s*.14+Math.sin(a)*s*.3;x.fillStyle=SUN;x.globalAlpha=.55+.45*Math.abs(Math.sin(t*4+i));x.beginPath();x.arc(lx,ly,s*.075,0,6.283);x.fill();x.globalAlpha=1;x.strokeStyle=BLUE;x.lineWidth=1.2*LWS;x.stroke()}
+  for(let i=0;i<5;i++){const a=.42+i*.575,px=Math.cos(a)*s*.84,py=s*.14+Math.sin(a)*s*.3;x.fillStyle=SUN;x.globalAlpha=.55+.45*Math.abs(Math.sin(t*4+i));x.beginPath();x.arc(px,py,s*.075,0,6.283);x.fill();x.globalAlpha=1;x.strokeStyle=BLUE;x.lineWidth=1.2*LWS;x.stroke()}
   x.restore();
+  // simbol ekspresi di samping kepala
+  const fx=cx+s*.8,fy=cy-s*1.2;
+  x.font='bold '+s*.6+'px '+FONT;x.textAlign='center';x.textBaseline='middle';x.lineJoin='round';
+  if(ex=='marah'){x.strokeStyle='#ff3b3b';x.lineWidth=s*.07;x.lineCap='round';for(let q=0;q<4;q++){const a=q*1.5708+.7854;x.beginPath();x.arc(fx+Math.cos(a)*s*.2,fy+Math.sin(a)*s*.2,s*.16,a+3.1416-1.2,a+3.1416+1.2);x.stroke()}}
+  else if(ex=='bingung'||ex=='kaget'){const c2=ex=='bingung'?'?':'!';x.lineWidth=s*.1;x.strokeStyle=BLUE;x.strokeText(c2,fx,fy+Math.sin(t*5)*s*.05);x.fillStyle=ex=='bingung'?'#ffb347':'#ff4d6d';x.fillText(c2,fx,fy+Math.sin(t*5)*s*.05)}
+  else if(ex=='melamun'){for(let i=0;i<3;i++){const p=(t*.5+i/3)%1;x.fillStyle='rgba(255,255,255,'+(.9*(1-p))+')';x.beginPath();x.arc(fx-s*.2+p*s*.5,fy+s*.3-p*s*.8,s*(.05+.09*p),0,6.283);x.fill()}}
+  else if(ex=='tertawa'){x.font='bold '+s*.34+'px '+FONT;x.fillStyle='#fff';x.fillText('ha',fx,fy+Math.abs(Math.sin(t*9))*-s*.12);x.fillText('ha',fx+s*.42,fy+s*.28+Math.abs(Math.sin(t*9+1.5))*-s*.12)}
+  else if(ex=='lucu'){draw(j=>starPts(fx,fy,s*.16*(1+.2*Math.sin(t*7)),631,j),'#ffd95a',1.4,1);draw(j=>starPts(fx+s*.32,fy+s*.32,s*.11*(1+.2*Math.sin(t*7+2)),632,j),'#ff9ecb',1.2,1)}
+  else if(ex=='kesal'){for(let i=0;i<2;i++){const p=(t*.8+i/2)%1;draw(j=>blob(fx+p*s*.5,fy+s*.5-p*s*.2,s*(.07+.07*p),s*(.06+.06*p),633+i,j),'#d9d9e6',1.2)}}
+}
+// Alin: robot bola putih sahabat Alienzy, melayang di tepi atas kepalanya. Perasaannya tampil di mata layarnya.
+// r = jari-jari bola dalam satuan dunia; o = {ex, look, tilt}: ex = ekspresi, look = arah pandang (-1..1)
+function alin(cx,cy,r,t,o){
+  const ex=o.ex||'normal',k=r/100,L0=LWS,lk=(o.look||0)*12,blink=(t%4.3)<.12;
+  const hop=ex=='senang'?-Math.abs(Math.sin(t*9))*10:ex=='kaget'||ex=='heran'?-6:0;
+  x.save();x.translate(cx,cy);x.rotate((o.tilt||0)+Math.sin(t*1.9)*.06+(ex=='bingung'?.22*Math.sin(t*2.5):0)+(ex=='marah'?Math.sin(t*40)*.06:0));x.scale(k,k);x.translate(0,hop);LWS=L0/k*.6;
+  // semburan pendorong dan kerucut di bawah
+  const fl=1+.25*Math.sin(t*33)+.15*Math.sin(t*51);
+  glow(0,120,75,'rgba(95,242,255,.5)');
+  draw(j=>[[-13,114],[13,114],[(h(j+F)-.5)*8,114+52*fl]],'#5ff2ff',1.6,1);
+  draw(()=>[[-27,84],[27,84],[10,126],[-10,126]],'#c9cede',2.2,1);
+  // sirip telinga segitiga dengan cakram abu-abu; tegak saat kaget, turun saat tidur
+  const fa=ex=='kaget'||ex=='heran'?-.22:ex=='tidur'?.32:ex=='marah'?.16:Math.sin(t*3.1)*.06;
+  for(const d of[-1,1]){x.save();x.translate(d*84,-6);x.rotate(d*fa);
+    draw(()=>[[-d*4,-40],[d*60,-150],[d*44,0],[d*8,36]],'#ffffff',2.6,1);
+    x.fillStyle='#8d93a6';x.beginPath();x.arc(d*24,-10,13,0,6.283);x.fill();x.strokeStyle=BLUE;x.lineWidth=1.4*LWS;x.stroke();
+    x.fillStyle='#2a3050';x.beginPath();x.arc(d*24,-10,6,0,6.283);x.fill();x.restore()}
+  // bola badan, garis sambungan, dan coretan nama merah muda
+  draw(j=>blob(0,0,100,96,760,j),'#ffffff',3);
+  x.save();x.beginPath();x.arc(0,0,93,0,6.283);x.clip();
+  x.strokeStyle='rgba(23,71,201,.3)';x.lineWidth=3;x.beginPath();x.ellipse(0,38,98,42,0,.2,2.94);x.stroke();
+  x.translate(-6+lk*.3,-60);x.rotate(-.16);x.font='bold 36px '+FONT;x.textAlign='center';x.textBaseline='middle';x.fillStyle='#ff4fc3';x.fillText('ALIN',0,0);
+  x.restore();
+  // layar wajah gelap
+  const sx=lk,sy=14;
+  x.beginPath();x.ellipse(sx,sy,76,42,0,0,6.283);x.fillStyle='#0c1228';x.fill();x.strokeStyle=BLUE;x.lineWidth=2.4*LWS;x.stroke();
+  x.strokeStyle='rgba(255,255,255,.2)';x.lineWidth=5;x.lineCap='round';x.beginPath();x.ellipse(sx,sy,64,31,0,3.5,4.5);x.stroke();
+  // mata menyala: bentuknya berubah mengikuti perasaan
+  const col=ex=='marah'?'#ff5a4d':ex=='cinta'?'#ff6fa5':ex=='tidur'?'#3aa9b8':'#5ff2ff';
+  x.strokeStyle=x.fillStyle=col;x.lineWidth=9;x.lineCap=x.lineJoin='round';x.shadowColor=col;x.shadowBlur=8;
+  for(const d of[-1,1]){const e0=sx+d*32+lk*.4,e1=sy+2;x.beginPath();
+    if(ex=='cinta'){x.save();x.translate(e0,e1);heart(15*(1+.15*Math.sin(t*8)));x.fill();x.restore()}
+    else if(ex=='kaget'){x.arc(e0,e1,14,0,6.283);x.stroke()}
+    else if(ex=='heran'){x.arc(e0,e1,d<0?16:8,0,6.283);x.stroke()}
+    else if(ex=='senang'){x.moveTo(e0+d*12,e1-13);x.lineTo(e0-d*10,e1);x.lineTo(e0+d*12,e1+13);x.stroke()}
+    else if(ex=='marah'){x.moveTo(e0+d*16,e1-10);x.lineTo(e0-d*14,e1+6);x.stroke()}
+    else if(ex=='tidur'){x.moveTo(e0-14,e1+8);x.lineTo(e0+14,e1+8);x.stroke()}
+    else if(blink||(ex=='bingung'&&d<0)){x.moveTo(e0-14,e1+2);x.lineTo(e0+14,e1+2);x.stroke()}
+    else{x.arc(e0,e1+8,16,3.45,5.97);x.stroke()}}
+  x.shadowBlur=0;
+  // kilau lensa biru di sisi kanan
+  glow(106,6,36,'rgba(90,150,255,.55)');x.strokeStyle='rgba(160,200,255,.5)';x.lineWidth=3;x.beginPath();x.moveTo(84,6);x.lineTo(150,6);x.stroke();
+  x.restore();LWS=L0;
+}
+// simbol yang keluar dari Alin: hati, ?!, ?, !!, not, z, dan tanda kesal; naik pelan lalu memudar
+function symbols(t){
+  for(let i=syms.length-1;i>=0;i--){
+    const p=syms[i],a=t-p.t0;if(a>1.7){syms.splice(i,1);continue}
+    const z=8*ob(a/.25);
+    x.save();x.translate(p.x+Math.sin(a*4+p.w)*1.5,p.y-a*9);x.rotate(Math.sin(a*5+p.w)*.15);x.globalAlpha=cl((1.7-a)/.5);
+    x.lineJoin=x.lineCap='round';x.strokeStyle='#fff';
+    if(p.c=='heart'){heart(z*.5);x.lineWidth=z*.2;x.stroke();x.fillStyle='#ff3b5c';x.fill()}
+    else if(p.c=='angry'){x.strokeStyle='#ff3b3b';x.lineWidth=z*.14;for(let q=0;q<4;q++){const g=q*1.5708+.7854;x.beginPath();x.arc(Math.cos(g)*z*.38,Math.sin(g)*z*.38,z*.3,g+3.1416-1.2,g+3.1416+1.2);x.stroke()}}
+    else{x.font='bold '+z+'px '+FONT;x.textAlign='center';x.textBaseline='middle';x.lineWidth=z*.24;x.strokeText(p.c,0,0);x.fillStyle=p.c=='z'?'#9ae6ff':p.c=='♪'?'#ffd95a':'#ff3b5c';x.fillText(p.c,0,0)}
+    x.restore();
+  }
 }
 // Andromeda: dari jauh berupa spiral berkilau; setelah didekati tampak lengan, lubang hitam, bintang, planet, dan dua galaksi satelitnya
 const AX=-430,AY=-340,AR=60,nearAnd=()=>Math.hypot(C.x-AX,C.y-AY)<140;
@@ -466,6 +679,41 @@ function poi(k,x0,y0,r,kind,hex,t,S,minPx){
 const MWH=[['omc',-62,-98,11,'glob','#ffe2a8',5],['m13',74,-112,9,'glob','#ffe2a8',5],['tuc',118,92,9,'glob','#ffe2a8',5],['lmc',128,172,17,'dwarf','#cfe0ff',6],['smc',188,150,11,'dwarf','#e3d6ff',6],['sgrd',-22,128,13,'dwarf','#ffd9c0',6],['cmd',-128,-52,10,'dwarf','#ffe9c4',6]];
 // benda di piringan Bima Sakti: [kunci, jarak dari pusat, sudut, ukuran, jenis, warna, ukuran layar minimum]; ikut berputar bersama galaksi
 const MWP=[['ori',90,2.62,5,'neb','#ff7eb6',6],['car',46,3.06,5.5,'neb','#ff9f40',6],['eag',40,2.5,4.5,'neb','#b388ff',6],['ringn',52,2.34,3,'ring','#6ee7c8',5],['crab',92,2.92,3.4,'rem','#ffb347',5],['ple',80,3.1,4,'ocl','#7da2ff',6],['sir',62,3.12,2,'star','#dff1ff',4],['bet',88,2.44,2.4,'star','#ff7a45',4],['acen',42,2.76,2,'star','#ffe9a8',4],['pol',76,2.36,2,'star','#fff3c9',4],['trap',54,3.14,3,'trap','#ff5a4a',5],['cyg',38,3,2.6,'bh','#9ae6ff',5]];
+// ===== Eksoplanet (tiruan NASA Eyes on Exoplanets versi kartun): sistem bintang di sekitar Matahari, bisa disaring menurut jenis planet =====
+// [kunci, jenis g/n/s/t, arah dari Matahari (derajat), jarak di peta (makin jauh aslinya makin besar; 0 = menempel di TRAPPIST-1), warna planet, hiasan, warna bintang induk]
+// jarak di peta = 22 + 9 x log10(jarak asli dalam tahun cahaya), jadi yang dekat tetap terlihat terpisah dari yang ribuan tahun cahaya
+const EXO=[['peg51','g',0,37,'#ffb347','band','#fff3c9'],['w12','g',125,50,'#ff8a3c','egg','#fff3c9'],['hd189','g',310,38,'#3d6be0','band','#ffc98a'],['k16','g',340,43,'#d9a066','two','#ffc98a'],
+ ['gj436','n',60,35,'#5b9cff','tail','#ff8a6a'],['hat11','n',95,41,'#6fd6d0','wind','#ffc98a'],['gj1214','n',245,37,'#7d8cff','wind','#ff8a6a'],
+ ['cnc55','s',30,36,'#c0392b','lava','#fff3c9'],['lhs1140','s',185,37,'#4a9be0','eye','#ff8a6a'],['k452','s',275,51,'#4aa3ff','land','#fff3c9'],['prox','s',150,27,'#c97b5a','rock','#ff6a5a'],
+ ['trape','t',215,36,'#6fb7a0','land','#ff5a4a'],['trapd','t',215,36,'#b08a6a','rock','#ff5a4a']];
+const XR={g:4.2,n:3.3,s:2.6,t:2},xk={};let xm=0;
+function exoPlanet(q,cx,cy,r,t,S){const d=q[5];
+  if(d=='tail')for(let i=0;i<6;i++){const p=(t*.8+i/6)%1;x.fillStyle='rgba(160,210,255,'+(.6*(1-p))+')';x.beginPath();x.arc(cx+r*(1+p*2.6),cy-r*(.3+p*.8),r*.35*(1-p)+.05,0,6.283);x.fill()}
+  x.save();x.translate(cx,cy);if(d=='egg')x.scale(1.3,.9);
+  draw(j=>blob(0,0,r,r,q[2]+940,j),q[4],1.6);
+  x.save();x.beginPath();x.arc(0,0,r*.93,0,6.283);x.clip();
+  if(d=='band'||d=='egg'||d=='two'){x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=r*.16;[-.45,0,.42].forEach(o=>{x.beginPath();x.moveTo(-r,o*r);x.lineTo(r,o*r+r*.08);x.stroke()})}
+  if(d=='wind'||d=='tail'){x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=r*.1;x.lineCap='round';[-.35,.3].forEach((o,i)=>{x.beginPath();x.moveTo(-r*.6,o*r);x.quadraticCurveTo(0,o*r-r*.25,r*.6,o*r+(i?r*.1:-r*.1));x.stroke()})}
+  if(d=='lava'){x.strokeStyle='#ffd23f';x.lineWidth=r*.12;x.lineCap=x.lineJoin='round';for(let i=0;i<4;i++){x.beginPath();x.moveTo((h(i+1)-.5)*r*1.6,-r);x.lineTo((h(i*3+1)-.5)*r*1.2,0);x.lineTo((h(i*5+1)-.5)*r*1.6,r);x.stroke()}}
+  if(d=='land'){x.fillStyle='rgba(80,200,120,.85)';[[-.35,-.3,.38,.3],[.4,.25,.34,.4]].forEach(o=>{x.beginPath();x.ellipse(o[0]*r,o[1]*r,o[2]*r,o[3]*r,.4,0,6.283);x.fill()})}
+  if(d=='eye'){x.fillStyle='rgba(255,255,255,.88)';x.fillRect(-r,-r,2*r,2*r);x.fillStyle='#2f6bd9';x.beginPath();x.arc(0,0,r*.55,0,6.283);x.fill();x.fillStyle='#16110f';x.beginPath();x.arc(Math.sin(t)*r*.12,0,r*.22,0,6.283);x.fill()}
+  if(d=='rock'){x.fillStyle='rgba(60,40,30,.4)';[[-.3,-.2,.26],[.3,.2,.2],[0,.5,.15]].forEach(o=>{x.beginPath();x.arc(o[0]*r,o[1]*r,o[2]*r,0,6.283);x.fill()})}
+  x.restore();
+  if(r*S>9&&d!='eye')face(0,r*.05,r,q[0]);
+  x.restore()}
+// Hanya tampil di mode Eksoplanet (xm = 0..1): galaksi disingkirkan, Tata Surya di tengah, sistem bintang lain di sekelilingnya dengan cincin jarak
+function exoLayer(t,S){
+  if(xm<.03)return;
+  x.fillStyle='rgba(5,7,26,'+(.6*xm)+')';x.fillRect(C.x-3000,C.y-3000,6000,6000);
+  for(let i=0;i<40;i++){x.fillStyle='rgba(255,255,255,'+(xm*(.25+.5*Math.abs(Math.sin(t*1.5+i))))+')';x.beginPath();x.arc(SP[0]+(h(i*1.7)-.5)*150,SP[1]+(h(i*3.3)-.5)*100,.25+h(i)*.4,0,6.283);x.fill()}
+  [[31,0],[40,1],[49,2]].forEach(r=>{x.setLineDash([3/S,6/S]);x.strokeStyle='rgba(160,200,255,'+(.3*xm)+')';x.lineWidth=1/S;x.beginPath();x.ellipse(SP[0],SP[1],r[0],r[0]*.6,0,0,6.283);x.stroke();x.setLineDash([]);labels.push({t:U.exoLy[r[1]],x:SP[0]+r[0]*.72,y:SP[1]-r[0]*.6*.72-16/S,arm:1})});
+  EXO.forEach((q,i)=>{const R0=XR[q[1]],k0=xk[q[0]]===undefined?1:xk[q[0]],kf=xk[q[0]]=k0+((FT=='all'||FT==q[1]?1:0)-k0)*.12,k=kf*xm;
+    if(k<.03)return;
+    const a=q[2]*.01745,sx=SP[0]+Math.cos(a)*q[3],sy=SP[1]+Math.sin(a)*q[3]*.6,orb=q[0]=='trape'?9:q[0]=='trapd'?5.6:6.4;
+    x.setLineDash([2/S,3/S]);x.strokeStyle='rgba(160,200,255,'+(.45*k)+')';x.lineWidth=1/S;x.beginPath();x.ellipse(sx,sy,orb,orb*.6,0,0,6.283);x.stroke();x.setLineDash([]);
+    if(q[0]!='trapd')for(const d of(q[5]=='two'?[-1.2,1.2]:[0])){glow(sx+d,sy,4*k,ha(q[6],.6));draw(j=>starPts(sx+d,sy,1.6*k*(1+.15*Math.sin(t*4+i)),950+i,j),d>0?'#ff8a6a':q[6],1,1)}
+    const oa=t*(.45+h(i)*.4)+i*2,px=sx+Math.cos(oa)*orb,py=sy+Math.sin(oa)*orb*.6;
+    exoPlanet(q,px,py,R0*k*bounce(q[0],t),t,S);if(k>.5)body(q[0],px,py,R0,S,1)})}
 function mwBack(t,S){
   // lingkaran jarak seperti peta: tiap lingkaran 12.500 tahun cahaya dari pusat
   if(Z<5){x.lineWidth=1/S;x.strokeStyle='rgba(160,200,255,.2)';x.setLineDash([4/S,6/S]);[25,50,75,100].forEach((r,i)=>{x.beginPath();x.ellipse(0,0,r,r*.55,0,0,6.283);x.stroke();labels.push({t:U.ly[i],x:r*.72,y:-r*.55*.72-16/S,arm:1})});x.setLineDash([])}
@@ -479,6 +727,72 @@ function mwFront(t,S){
   if(Z>.7&&Z<5)[[0,0,.78],[1,1,.6],[2,2,.62]].forEach(a=>{const f=a[2],p=g(100*(.25+.8*f)+9,a[1]*2.094+f*3.3);labels.push({t:U.arms[a[0]],x:p[0],y:p[1],arm:1})});
   if(Z>.7&&!solBig){const p=g(66,2.74);labels.push({t:U.orion,x:p[0],y:p[1]+Math.max(SU*.6,16/S)+14/S,arm:1})}
 }
+// ===== Percobaan: karakter pemandu dengan kacamata pindai, antena telinga, dan sepatu roket =====
+// Hanya tampil bila GUIDE = true (dinyalakan di versi web/index.html). Untuk mengembalikan seperti semula, jadikan false.
+function capM(a,b,w,col,sd,lw){const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,nx=-uy*w,ny=ux*w;
+  const P=[[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]+ux*w,b[1]+uy*w],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny],[a[0]-ux*w,a[1]-uy*w]];
+  draw(j=>P.map((p,i)=>[p[0]+(h(sd+i*5+j*3+F)-.5)*4,p[1]+(h(sd+i*7+j*5+F)-.5)*4]),col,lw||3)}
+// titik asal di telapak kaki; hgt = tinggi karakter dalam satuan dunia; thrust = tambahan semburan saat disentuh
+function guide(cx,cy,hgt,t,thrust){
+  const k=hgt/400,L0=LWS;x.save();x.translate(cx,cy);x.rotate(Math.sin(t*1.3)*.07);x.scale(k,k);LWS=L0/k*.75;
+  const b=Math.sin(t*4)*3,fl=1+.22*Math.sin(t*31)+.14*Math.sin(t*47)+thrust*1.4,sway=Math.sin(t*2.1)*.12;
+  // semburan sepatu roket
+  for(const d of[-1,1]){const fx=d*36,fy=8;
+    glow(fx,fy+40,80,'rgba(255,140,50,.45)');
+    draw(j=>[[fx-17,fy],[fx+17,fy],[fx+12+(h(j+F)-.5)*8,fy+40*fl],[fx+Math.sin(t*23+d)*7,fy+92*fl],[fx-12+(h(j*3+F)-.5)*8,fy+40*fl]],'#ff8a3c',2.4);
+    draw(j=>[[fx-9,fy],[fx+9,fy],[fx+6,fy+26*fl],[fx+Math.sin(t*29+d)*4,fy+56*fl],[fx-6,fy+26*fl]],'#ffe27a',1.6);
+    for(let i=0;i<3;i++){const p=(t*1.8+i/3+d*.2)%1;x.fillStyle='rgba(255,210,120,'+(1-p)+')';x.beginPath();x.arc(fx+(h(i*3+d)-.5)*30,fy+70+p*90*fl,5*(1-p)+1.5,0,6.283);x.fill()}}
+  // kaki dan sepatu roket
+  capM([-30,-62+b],[-34,-30],24,'#ffffff',11);capM([30,-62+b],[34,-30],24,'#ffffff',12);
+  for(const d of[-1,1]){
+    draw(j=>[[d*36-30,-34],[d*36+30,-34],[d*36+34,-6],[d*36+22,8],[d*36-22,8],[d*36-34,-6]].map((p,i)=>[p[0]+(h(700+i+j*3+F)-.5)*3,p[1]+(h(710+i+j*5+F)-.5)*3]),'#ffffff',3,1);
+    x.strokeStyle='#ff8a3c';x.lineWidth=7;x.lineCap='round';x.beginPath();x.moveTo(d*36-26,-20);x.lineTo(d*36+26,-20);x.stroke();
+    x.fillStyle='#ffb347';x.beginPath();x.arc(d*36,-6,7,0,6.283);x.fill()}
+  // badan, kaus kuning berkerah, overall putih
+  draw(j=>blob(0,-84+b,68,40,13,j),'#ffffff',3.2);
+  capM([-58,-150+b],[-58+Math.cos(1.95+sway)*70,-150+b+Math.sin(1.95+sway)*70],15,'#ffffff',20);
+  draw(j=>blob(-58+Math.cos(1.95+sway)*70,-150+b+Math.sin(1.95+sway)*70,19,19,22,j),'#ffffff',3);
+  draw(j=>blob(0,-135+b,62,48,16,j),'#ffe27a',3.2);
+  draw(j=>blob(0,-138+b,15,17,17,j),'#ffffff',2);
+  capM([-36,-100+b],[-42,-178+b],7,'#ffffff',23,2.4);capM([36,-100+b],[42,-178+b],7,'#ffffff',24,2.4);
+  const a2=-1.2+Math.sin(t*5)*.35;
+  capM([58,-150+b],[58+Math.cos(a2)*70,-150+b+Math.sin(a2)*70],15,'#ffffff',30);
+  draw(j=>blob(58+Math.cos(a2)*70,-150+b+Math.sin(a2)*70,19,19,32,j),'#ffffff',3);
+  // kepala
+  draw(j=>blob(118,-226+b,20,24,40,j),'#ffffff',3);
+  draw(j=>blob(0,-225+b,112,76,41,j),'#ffffff',3.4);
+  x.fillStyle='rgba(255,130,150,.4)';for(const d of[-1,1]){x.beginPath();x.ellipse(d*80,-184+b,18,12,0,0,6.283);x.fill()}
+  const blink=(t%3.7)<.13;
+  for(const d of[-1,1]){const ex=d*52,ey=-222+b;draw(j=>blob(ex,ey,30,30,90+d,j),'#ffffff',3);
+    if(blink){x.strokeStyle=BLUE;x.lineWidth=4;x.lineCap='round';x.beginPath();x.moveTo(ex-22,ey+2);x.lineTo(ex+22,ey+2);x.stroke()}
+    else{x.fillStyle='#16110f';x.beginPath();x.ellipse(ex+Math.sin(t*.9)*5,ey+5,8,9,0,0,6.283);x.fill();
+      x.save();x.beginPath();x.arc(ex,ey,29,0,6.283);x.clip();x.fillStyle='#eef1fb';x.fillRect(ex-40,ey-40,80,35);x.strokeStyle=BLUE;x.lineWidth=3.5;x.beginPath();x.moveTo(ex-40,ey-5);x.lineTo(ex+40,ey-5);x.stroke();x.restore()}}
+  x.fillStyle='#16110f';for(const d of[-7,7]){x.beginPath();x.arc(d,-186+b,3.2,0,6.283);x.fill()}
+  x.strokeStyle=BLUE;x.lineWidth=3.5;x.lineCap='round';x.fillStyle='#c0392b';x.beginPath();x.arc(0,-172+b,20,.15,2.99);x.closePath();x.fill();x.stroke();
+  // rambut mangkuk dengan poni bergerigi
+  {const hp=[];for(let a=Math.PI;a<=6.284;a+=.13)hp.push([Math.cos(a)*128,-262+b+Math.sin(a)*125]);
+   [[118,-246],[92,-258],[66,-244],[40,-258],[14,-242],[-14,-258],[-40,-244],[-66,-258],[-92,-246],[-118,-256]].forEach(q=>hp.push([q[0],q[1]+b]));
+   const P=j=>hp.map((p,i)=>[p[0]+(h(60+i*5+j*3+F)-.5)*6,p[1]+(h(60+i*7+j*5+F)-.5)*6]);
+   x.beginPath();sharp(P(0));x.fillStyle='#16110f';x.fill();x.strokeStyle=BLUE;x.lineJoin='round';
+   for(let j=1;j<=2;j++){x.beginPath();sharp(P(j));x.lineWidth=3.4*LWS*k*(j==1?1:.55);x.globalAlpha=j==1?.95:.5;x.stroke()}x.globalAlpha=1}
+  // antena kecil menutupi kedua telinga: cangkang putih, sisipan biru, bilah merah muda bergaris kuning
+  for(const d of[-1]){const wob=Math.sin(t*5+d)*4;
+    draw(j=>[[d*100,-246+b],[d*128,-256+b],[d*156+wob,-336+b],[d*141+wob,-343+b]].map((p,i)=>[p[0]+(h(720+i+j*3+F)-.5)*3,p[1]+(h(730+i+j*5+F)-.5)*3]),'#ff6fb5',2.6,1);
+    x.strokeStyle='#ffe27a';x.lineWidth=4;x.lineCap='round';x.beginPath();x.moveTo(d*119,-266+b);x.lineTo(d*146+wob,-328+b);x.stroke();
+    draw(j=>blob(d*120,-224+b,30,38,740+d,j),'#ffffff',3);
+    draw(j=>blob(d*122,-220+b,15,21,742+d,j),'#3d5bd9',2.2);
+    x.fillStyle='#ffe27a';x.beginPath();x.arc(d*122,-220+b,5,0,6.283);x.fill()}
+  // kacamata pindai di satu mata: tidak menyala terus, hanya berkedip dua kali tiap beberapa detik
+  {const ph=t%2.8,on=ph<.12||(ph>.24&&ph<.36),vx=-52,vy=-222+b;
+   if(on)glow(vx,vy,95,'rgba(125,255,176,.55)');
+   x.beginPath();const w=44,hh=30,r=10;x.moveTo(vx-w+r,vy-hh);x.lineTo(vx+w-r,vy-hh);x.quadraticCurveTo(vx+w,vy-hh,vx+w,vy-hh+r);x.lineTo(vx+w,vy+hh-r);x.quadraticCurveTo(vx+w,vy+hh,vx+w-r,vy+hh);x.lineTo(vx-w+r,vy+hh);x.quadraticCurveTo(vx-w,vy+hh,vx-w,vy+hh-r);x.lineTo(vx-w,vy-hh+r);x.quadraticCurveTo(vx-w,vy-hh,vx-w+r,vy-hh);x.closePath();
+   x.fillStyle=on?'rgba(125,255,176,.5)':'rgba(47,174,107,.16)';x.fill();x.strokeStyle=on?'#b6ffd6':'#2fae6b';x.lineWidth=on?8:6;x.lineJoin='round';x.stroke();
+   x.lineWidth=5;x.lineCap='round';x.beginPath();x.moveTo(vx-w,vy);x.lineTo(vx-w-14,vy-2);x.stroke();
+   x.lineWidth=3;for(let i=0;i<3;i++){x.beginPath();x.moveTo(vx-w+8,vy+hh+8+i*7);x.lineTo(vx-w+20-i*4,vy+hh+8+i*7);x.stroke()}
+   if(on){x.strokeStyle='rgba(255,255,255,.8)';x.lineWidth=3;x.beginPath();x.moveTo(vx-w+10,vy-hh+((ph*900)%50)+4);x.lineTo(vx+w-10,vy-hh+((ph*900)%50)+4);x.stroke()}}
+  x.restore();LWS=L0;
+}
+
 function solar(t,dt,S){
   const sx=SP[0],sy=SP[1],px=SU*S; // px = jari-jari Tata Surya di layar
   if(px<70){ // dari jauh: titik berkilau + cincin penanda
@@ -495,10 +809,13 @@ function solar(t,dt,S){
   for(let i=0;i<10;i++){const a=i/10*6.283+t*.3;x.fillStyle='rgba(255,210,100,.1)';x.beginPath();x.moveTo(sx,sy);x.arc(sx,sy,sr*(2.2+.3*Math.sin(t*3+i)),a,a+.25);x.closePath();x.fill()}
   glow(sx,sy,sr*2.2,'rgba(255,200,80,.55)');
   if(fl<1.5){x.strokeStyle='rgba(255,220,120,'+(1-fl/1.5)+')';x.lineWidth=3/S;x.beginPath();x.arc(sx,sy,sr+fl*SU*.5,0,6.283);x.stroke()}
-  draw(j=>blob(sx,sy,sr,sr,2,j),SUN,2.6);if(sr*S>14)face(sx,sy,sr*.9);body('sun',sx,sy,sr,S,1);
+  draw(j=>blob(sx,sy,sr,sr,2,j),SUN,2.6);if(sr*S>14)face(sx,sy,sr*.9,'sun');body('sun',sx,sy,sr,S,1);
   PLN.map(p=>{ang[p.k]+=dt*.5*p.sp*boost(p.k,t);const a=ang[p.k];return{p,x:sx+Math.cos(a)*SU*p.f,y:sy+Math.sin(a)*SU*p.f*.62}})
   .sort((u,v)=>u.y-v.y).forEach(o=>{
     const p=o.p,r=p.r*bounce(p.k,t),sr2=r*S;
+    // jejak orbit: karena Tata Surya ikut bergerak mengelilingi galaksi, jejak tiap planet tampak seperti spiral, bukan lingkaran tertutup
+    {const Tq=TR[p.k]||(TR[p.k]=[]),n=Tq.length,dd=n?Math.hypot(Tq[n-1][0]-o.x,Tq[n-1][1]-o.y):9;if(dd>3||t-flyAt<1.6)Tq.length=0;if(dd>.25){Tq.push([o.x,o.y]);if(Tq.length>150)Tq.shift()}
+     x.strokeStyle=p.col;x.lineWidth=2.4/S;x.lineCap='round';for(let i=1;i<Tq.length;i++){x.globalAlpha=.95*i/Tq.length;x.beginPath();x.moveTo(Tq[i-1][0],Tq[i-1][1]);x.lineTo(Tq[i][0],Tq[i][1]);x.stroke()}x.globalAlpha=1}
     if(p.k=='sat'){x.save();x.translate(o.x,o.y);x.rotate(-.35+.25*Math.exp(-(t-(bump.sat||-9)))*Math.sin(t*9));draw(j=>blob(0,0,r*2,r*.6,70,j),'#ff9ecb',1.8);x.restore()}
     draw(j=>blob(o.x,o.y,r,r,p.f*50,j),p.col,2.2);
     x.save();x.beginPath();x.arc(o.x,o.y,r*.94,0,6.283);x.clip();
@@ -507,7 +824,7 @@ function solar(t,dt,S){
     if(p.k=='plu'&&sr2>8){x.fillStyle='#fff7ee';for(const d of[-1,1]){x.beginPath();x.arc(o.x+d*r*.2,o.y+r*.1,r*.26,0,6.283);x.fill()}x.beginPath();x.moveTo(o.x-r*.44,o.y+r*.2);x.lineTo(o.x,o.y+r*.72);x.lineTo(o.x+r*.44,o.y+r*.2);x.fill()}
     if(p.k=='mar'&&sr2>8){x.fillStyle='rgba(255,255,255,.8)';x.beginPath();x.ellipse(o.x,o.y-r*.85,r*.5,r*.25,0,0,6.283);x.fill()}
     x.restore();
-    if(sr2>16&&p.k!='jup'&&p.k!='plu')face(o.x,o.y+r*.05,r);
+    if(sr2>16&&p.k!='jup'&&p.k!='plu')face(o.x,o.y+r*.05,r,p.k);
     if(p.k=='sat'){x.save();x.translate(o.x,o.y);x.rotate(-.35+.25*Math.exp(-(t-(bump.sat||-9)))*Math.sin(t*9));x.beginPath();x.ellipse(0,0,r*2,r*.6,0,.2,2.94);x.strokeStyle='#ff9ecb';x.lineWidth=r*.24;x.lineCap='round';x.stroke();x.strokeStyle=BLUE;x.lineWidth=1.6/S;x.stroke();x.restore()}
     if(p.k=='ura'){x.strokeStyle='rgba(255,255,255,.75)';x.lineWidth=1.6/S;x.beginPath();x.ellipse(o.x,o.y,r*.5,r*1.5,.25,0,6.283);x.stroke()}
     body(p.k,o.x,o.y,r,S,1);
@@ -524,7 +841,13 @@ function frame(ms){
   SP=[Math.cos(2.74+rot)*66,Math.sin(2.74+rot)*66*.55];
   if(follow=='sol'){Ct.x=SP[0];Ct.y=SP[1]}
   const e=Math.min(1,dt*6);Z+=(Zt-Z)*e;C.x+=(Ct.x-C.x)*e;C.y+=(Ct.y-C.y)*e;
-  const S=Z*B;hits=[];labels=[];
+  // kamera sinematik: melayang pelan, mundur dulu lalu menukik saat terbang, dan menghentak kecil saat benda disentuh
+  const fp=cl((t-flyAt)/1.1),pa=t-punchAt;vx=W/2+Math.sin(t*.23)*5;vy=H*.53+Math.cos(t*.19)*4;
+  // mode Eksoplanet menutup sendiri bila kamera sudah pergi jauh dari lingkungan Matahari
+  if(exoOpen&&fp>=1&&(Z<1.7||Z>10||Math.hypot(C.x-SP[0],C.y-SP[1])>60)){exoOpen=false;FT='all';setLang(LANG)}
+  xm+=((exoOpen?1:0)-xm)*Math.min(1,dt*4);
+  mLv=Z>4?2:(nearAnd()||nearClu()||Z>2||fp<1)?1:0;music();
+  const S=Z*B*(1-.25*Math.sin(Math.PI*fp))*(1+(pa<1?.05*Math.exp(-pa*9)*Math.cos(pa*20):0));hits=[];labels=[];
   nav.textContent=Z>4||nearAnd()||nearClu()?U.toMW:U.toSol;
   x.clearRect(0,0,W,H);x.drawImage(bg,0,0);
   {const ox=(t*10)%W,oy=(t*10)%H;for(const dx of[0,W])for(const dy of[0,-H])x.drawImage(hz,dx-ox,dy+oy)}
@@ -545,13 +868,13 @@ function frame(ms){
   {const k=bounce('neb',t),nx=185,ny=-165;glow(nx-20,ny,70*k,'rgba(255,110,180,.5)');glow(nx+30,ny+15,60*k,'rgba(255,170,90,.4)');glow(nx,ny-25,50*k,'rgba(140,120,255,.45)');
    for(let i=0;i<6;i++)draw(j=>starPts(nx+(h(i*3)-.5)*90,ny+(h(i*5)-.5)*70,(4+h(i)*4)*(1+.3*Math.sin(t*3+i)),500+i,j),'#ffffff',1.4,1);body('neb',nx,ny,48,S,1)}
   cluster(t,S);
-  mwBack(t,S);
+  if(xm<.5){mwBack(t,S);spaceGrid(S)}
   // sinar inti + cahaya galaksi
   for(let i=0;i<10;i++){const a=i/10*6.283+t*.12;x.fillStyle='rgba(255,220,160,.07)';x.beginPath();x.moveTo(0,0);x.arc(0,0,150+15*Math.sin(t*2+i),a,a+.2);x.closePath();x.fill()}
   glow(0,0,140,'rgba(255,214,250,'+(.5+.15*Math.sin(t*1.7))+')');
   // lengan spiral
   // saat masuk ke Tata Surya, gumpalan lengan mengecil supaya tidak menutupi planet
-  const ak=cl((6.5-Z)/2.5);
+  const ak=cl((6.5-Z)/2.5)*(1-xm);
   x.save();x.scale(1,.55);x.rotate(rot);
   if(ak>0){x.save();x.rotate(.6);draw(j=>blob(0,0,48*ak,15*ak,98,j),'#ffe2a8',1.8);x.restore()}
   if(ak>0)for(let a=0;a<3;a++)for(let i=0;i<13;i++){
@@ -561,8 +884,8 @@ function frame(ms){
   }
   x.restore();
   // inti galaksi
-  {const k=bounce('core',t);x.save();x.rotate(Math.sin(t*.6)*.08);x.scale(k,k);draw(j=>blob(0,0,30,27,99,j),SUN,3);face(0,0,30);x.restore();body('core',0,0,30,S,1)}
-  mwFront(t,S);
+  if(xm<.5){const k=bounce('core',t)*(1-xm*2);x.save();x.rotate(Math.sin(t*.6)*.08);x.scale(k,k);draw(j=>blob(0,0,30,27,99,j),SUN,3);face(0,0,30,'core');x.restore();body('core',0,0,30,S,1)}
+  if(xm<.5)mwFront(t,S);exoLayer(t,S);
   solar(t,dt,S);
   // meteor jatuh cepat
   {const s=(t%5)/1.1;if(s<1){const mx=310-600*s,my=-330+560*s;meteor(mx,my,13*bounce('met',t));body('met',mx,my,17,S,0)}}
@@ -570,9 +893,27 @@ function frame(ms){
   {const a=t*.03,ax=Math.cos(a)*290,ay=Math.sin(a)*205,k=bounce('ast',t);
    [[-36,8,20,0],[2,-10,12,2],[34,12,7,4]].forEach((q,i)=>{const px=ax+q[0],py=ay+q[1]+Math.sin(t*.7+q[3])*5;asteroid(px,py,q[2]*k,t*.15*(i%2?-1:1)+q[3],600+i*10);body('ast',px,py,q[2],S,i==0)})}
   // alien di piring terbang berkeliling; melesat kalau disentuh
-  {const dg=drag&&drag.on;if(!dg)ufoPh+=dt*.12*boost('ufo',t);const b=ufoBase(),ux=dg?drag.x:b[0]+uOff.x,uy=(dg?drag.y:b[1]+uOff.y)+Math.sin(t*2.2)*5;ufo(ux,uy,24*bounce('ufo',t)*(dg?1.15:1),t);body('ufo',ux,uy-8,26,S,1)}
+  {const dg=drag&&drag.on;if(!dg)ufoPh+=dt*.12*boost('ufo',t);const b=ufoBase(),ux=dg?drag.x:b[0]+uOff.x,uy=(dg?drag.y:b[1]+uOff.y)+Math.sin(t*2.2)*5;
+   // Alien7 menoleh dan menunjuk benda yang sedang dijelaskan; kalau tidak ada, ekspresinya berganti-ganti sendiri
+   const m=mood.ufo,q=h(Math.floor(t/4.5)*1.7),tg=SELP&&sel&&sel.k!='ufo'?SELP:null,vX=(ux-U7.x)/Math.max(dt,.001);U7.x=ux;
+   const ex=dg?'kaget':t<m.until?m.ex:tg||q<.5?'normal':q<.68?'lucu':q<.84?'melamun':'bingung';
+   ufo(ux,uy,24*bounce('ufo',t)*(dg?1.15:1),t,{ex,tilt:clamp(vX/200)*.3,lx:tg?clamp((tg[0]-ux)/70):clamp(vX/20)*.7+Math.sin(t*.9)*.3,ly:tg?clamp((tg[1]-uy)/70):Math.sin(t*.6)*.4,point:tg&&ex!='tertawa'&&ex!='marah'?tg:null,kick:ex=='marah'?Math.abs(Math.sin(t*9)):0});
+   body('ufo',ux,uy-8,26,S,1)}
+  if(GUIDE){gPh+=dt*.1*boost('kid',t);const kx=Math.cos(gPh*.8+2)*205,ky=Math.sin(gPh*1.1)*150+70+Math.sin(t*2)*4;guide(kx,ky,46*bounce('kid',t),t,Math.max(0,boost('kid',t)-1)/7);body('kid',kx,ky-23,24,S,0);labels.push({t:INFO.kid.n,x:kx,y:ky+14,k:'kid'});
+   // Alin menempel di tepi atas kepala Alienzy, kadang di kiri kadang pindah ke kanan lewat atas kepala
+   const m=mood.alin,q=h(Math.floor(t/5)*2.3+1),tg=SELP&&sel&&sel.k!='alin'&&sel.k!='kid'?SELP:null;
+   const ex=t<m.until?m.ex:(t%5)<2.6?(q<.5?'normal':q<.65?'cinta':q<.78?'bingung':q<.9?'senang':'tidur'):'normal';
+   const side=tg?(tg[0]<kx?-1:1):(Math.floor(t/7)+Math.floor(t/11))%2?1:-1;
+   if(AL.x==null){AL.x=kx+side*20;AL.y=ky-47;AL.sd=side}
+   AL.sd+=(side-AL.sd)*Math.min(1,dt*2.2);
+   const ax=AL.x,e2=Math.min(1,dt*7);AL.x+=(kx+AL.sd*20-AL.x)*e2;AL.y+=(ky-47-(1-AL.sd*AL.sd)*10+Math.sin(t*2.7)*1.2-AL.y)*e2;
+   alin(AL.x,AL.y,6.2*bounce('alin',t),t,{ex,look:tg?clamp((tg[0]-AL.x)/60):-AL.sd*.6+Math.sin(t*.8)*.3,tilt:clamp((AL.x-ax)/Math.max(dt,.001)/120)*.35});
+   body('alin',AL.x,AL.y,7,S,0);
+   if(ex!='normal'&&t-AL.em>.85){AL.em=t;syms.push({c:SYM[ex],x:AL.x+(h(t*7)-.5)*5,y:AL.y-8,t0:t,w:h(t*3)*6.283})}
+   symbols(t)}
   // lingkaran penanda benda terpilih
-  if(sel){const q=hits.find(v=>v.k==sel.k);if(q){x.save();x.translate(q.x,q.y);x.rotate(t*1.2);x.setLineDash([7/S,8/S]);x.strokeStyle='#fff';x.lineWidth=2.4/S;x.beginPath();x.arc(0,0,q.r*1.35+6/S,0,6.283);x.stroke();x.restore();x.setLineDash([])}}
+  SELP=null;
+  if(sel){const q=hits.find(v=>v.k==sel.k);if(q){SELP=[q.x,q.y];x.save();x.translate(q.x,q.y);x.rotate(t*1.2);x.setLineDash([7/S,8/S]);x.strokeStyle='#fff';x.lineWidth=2.4/S;x.beginPath();x.arc(0,0,q.r*1.35+6/S,0,6.283);x.stroke();x.restore();x.setLineDash([])}}
   // bintang hasil sentuhan dan percikan dari benda yang disentuh
   for(let i=pops.length-1;i>=0;i--){
     const p=pops[i],age=t-p.t0,life=p.mini?.9:3;
@@ -581,6 +922,10 @@ function frame(ms){
     else{const rr=22/S*(Math.min(1,age*4)+.15*Math.sin(age*10))*(age>2?3-age:1);if(rr*S>1.5)draw(j=>starPts(p.x,p.y-age*14/S,rr,300+i,j),['#ffd95a','#ff9ecb','#9ae6ff'][i%3],2.2,1)}
   }
   x.restore();LWS=1;PM=null;
+  // warna suasana per wilayah, vinyet, dan garis kecepatan saat kamera terbang
+  {const tint=Z>4?'255,170,70':nearAnd()?'170,110,255':nearClu()?'70,220,230':null;if(tint){x.fillStyle='rgba('+tint+',.07)';x.fillRect(0,0,W,H)}
+   const g=x.createRadialGradient(W/2,H/2,Math.min(W,H)*.35,W/2,H/2,Math.hypot(W,H)*.6);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,10,.55)');x.fillStyle=g;x.fillRect(0,0,W,H);
+   if(fp<1){x.lineCap='round';const D=Math.hypot(W,H);for(let i=0;i<46;i++){const a=h(i*1.7)*6.283,r0=D*(.12+h(i*3.1)*.5)*(.6+fp),L=(60+h(i*5)*160)*(1-fp);x.strokeStyle='rgba(255,255,255,'+(.5*(1-fp)*Math.sin(Math.PI*Math.min(1,fp*3)))+')';x.lineWidth=1.5+h(i)*2.5;x.beginPath();x.moveTo(vx+Math.cos(a)*r0,vy+Math.sin(a)*r0);x.lineTo(vx+Math.cos(a)*(r0+L),vy+Math.sin(a)*(r0+L));x.stroke()}}}
   // ===== layar =====
   x.textAlign='center';x.textBaseline='top';x.lineJoin='round';x.font='bold '+Math.min(15,W*.04)+'px '+FONT;
   const used=[];labels.sort((a,b)=>(a.arm?1:0)-(b.arm?1:0)).forEach(l=>{const lx=(l.x-C.x)*S+vx,ly=(l.y-C.y)*S+vy+5;if(lx<-60||lx>W+60||ly<150||ly>H-10)return;const tw=x.measureText(l.t).width/2+3;if(used.some(u=>Math.abs(u[0]-lx)<u[2]+tw&&Math.abs(u[1]-ly)<15))return;used.push([lx,ly,tw]);x.lineWidth=3.5;x.strokeStyle='rgba(10,15,46,.85)';x.strokeText(l.t,lx,ly);x.fillStyle=l.arm?'#8fa6e0':found.has(l.k)?'#ffd95a':'#e8eeff';x.fillText(l.t,lx,ly)});
@@ -588,14 +933,18 @@ function frame(ms){
   const ty=Math.max(40,H*.075),fs=Math.min(W*.1,52);
   x.save();x.translate(W/2,ty);x.rotate(Math.sin(t)*.015);
   x.font='bold '+fs+'px '+FONT;x.textAlign='center';x.textBaseline='middle';
-  x.lineWidth=5;x.strokeStyle=BLUE;x.lineJoin='round';const ttl=nearAnd()?'Andromeda':nearClu()?U.clu:'The Milky Way';x.strokeText(ttl,0,0);x.fillStyle=nearAnd()?'#c9a0ff':nearClu()?'#9ae6ff':'#ffb347';x.fillText(ttl,0,0);
+  x.lineWidth=5;x.strokeStyle=BLUE;x.lineJoin='round';const ttl=xm>.5?U.exo:nearAnd()?'Andromeda':nearClu()?U.clu:'The Milky Way';x.strokeText(ttl,0,0);x.fillStyle=nearAnd()?'#c9a0ff':nearClu()?'#9ae6ff':'#ffb347';x.fillText(ttl,0,0);
   x.restore();
   x.font='bold '+Math.min(14,W*.04)+'px '+FONT;x.textAlign='center';x.textBaseline='middle';x.fillStyle='#ffd95a';
   x.fillText(U.found(found.size,KEYS.length),W/2,ty+fs*.85);
   bar.style.top=(ty+fs*.85+18)+'px';
+  if(exoOpen){fl.style.top=(ty+fs*.85+26+bar.offsetHeight)+'px';if(!sel){x.font=Math.min(13,W*.034)+'px '+FONT;x.fillStyle='#ffd9a0';x.fillText(U.exoStat,W/2,H-46)}}
   if(!sel&&Z<3&&!nearAnd()&&!nearClu()){const L=50*S,bx=18,by=H-58;x.strokeStyle='#8fa6e0';x.lineWidth=1.5;x.beginPath();x.moveTo(bx,by-5);x.lineTo(bx,by);x.lineTo(bx+L,by);x.lineTo(bx+L,by-5);x.stroke();x.font=Math.min(13,W*.036)+'px '+FONT;x.textAlign='left';x.textBaseline='bottom';x.fillStyle='#8fa6e0';x.fillText(U.scale,bx,by-7);x.textAlign='center';x.textBaseline='middle'}
+  stampDraw(t,ty+fs*.85+100);
+  if(doneAt&&t-doneAt<8)for(let i=0;i<70;i++){const p=((t-doneAt)*.35+h(i))%1;x.fillStyle=['#ffd95a','#ff9ecb','#9ae6ff','#7dffb0'][i%4];x.save();x.translate(h(i*3.1)*W+Math.sin(t*2+i)*20,p*H);x.rotate(t*4+i);x.fillRect(-6,-3,12,6);x.restore()}
   card(t);
   if(!sel){
+    x.font=Math.min(13,W*.036)+'px '+FONT;x.textAlign='right';x.fillStyle='#8fa6e0';x.fillText(U.zoom+' ×'+(LANG=='id'?Z.toFixed(1).replace('.',','):Z.toFixed(1)),W-18,H-58);x.textAlign='center';
     x.font=Math.min(18,W*.045)+'px '+FONT;x.fillStyle='#c9d6ff';
     x.fillText(doneAt?U.done:U.hint,W/2,H-24);
   }
